@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { EmbedBuilder, REST, Routes } from "discord.js";
-import { prettyMode } from "./logic.js";
+import { formatKd, prettyMode } from "./logic.js";
 
 const LIVE_REFRESH_MS = 15_000;
 const COLOR = 0xe8a317;
@@ -26,10 +26,109 @@ function stateFile(databasePath) {
   return join(dirname(databasePath), "discord-output.json");
 }
 
+function scoreTable(status) {
+  return (status?.factionScores || [])
+    .map((row) => ({
+      name: String(row?.name || "Команда").trim() || "Команда",
+      score: Number(row?.score) || 0,
+    }))
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+}
+
+function leaderText(scores) {
+  if (!scores.length) return "Счёт команд пока недоступен.";
+  const best = scores[0].score;
+  const leaders = scores.filter((row) => row.score === best);
+  if (leaders.length > 1) {
+    return `**Ничья:** ${leaders.map((row) => row.name).join(" / ")} — **${best}**`;
+  }
+  const second = scores.find((row) => row.score < best);
+  const gap = second ? best - second.score : 0;
+  return [
+    `**${leaders[0].name}** — **${best}**`,
+    second ? `Отрыв от ${second.name}: **+${gap}**` : null,
+  ].filter(Boolean).join("\n");
+}
+
+function scoreText(scores) {
+  if (!scores.length) return "Счёт недоступен.";
+  const medals = ["🥇", "🥈", "🥉"];
+  return scores
+    .map((row, index) => `${medals[index] || "•"} **${row.name}** — **${row.score}**`)
+    .join("\n")
+    .slice(0, 1024);
+}
+
+function factionText(roster, scores) {
+  const byFaction = new Map();
+  for (const player of roster || []) {
+    const faction = String(player?.faction || "").trim() || "Без фракции";
+    const key = faction.toLowerCase();
+    const row = byFaction.get(key) || { name: faction, players: 0, kills: 0 };
+    row.players += 1;
+    row.kills += Number(player?.kills) || 0;
+    byFaction.set(key, row);
+  }
+
+  const ordered = [];
+  const used = new Set();
+  for (const score of scores) {
+    const key = score.name.toLowerCase();
+    const row = byFaction.get(key);
+    if (row) {
+      ordered.push(row);
+      used.add(key);
+    }
+  }
+  for (const [key, row] of byFaction) {
+    if (!used.has(key)) ordered.push(row);
+  }
+
+  if (!ordered.length) return "Нет данных по составам команд.";
+  return ordered
+    .map((row) => `**${row.name}** — ${row.players} игроков · ${row.kills} килов`)
+    .join("\n")
+    .slice(0, 1024);
+}
+
+function currentAwards(roster) {
+  const players = [...(roster || [])];
+  const dogi = players
+    .filter((row) => (Number(row?.kills) || 0) > 0)
+    .sort((a, b) =>
+      (Number(b.kills) || 0) - (Number(a.kills) || 0) ||
+      (Number(a.deaths) || 0) - (Number(b.deaths) || 0) ||
+      (Number(b.cashEarned) || 0) - (Number(a.cashEarned) || 0)
+    )[0] || null;
+  const miser = players
+    .filter((row) => (Number(row?.cashEarned) || 0) > 0)
+    .sort((a, b) =>
+      (Number(b.cashEarned) || 0) - (Number(a.cashEarned) || 0) ||
+      (Number(b.kills) || 0) - (Number(a.kills) || 0)
+    )[0] || null;
+  return { dogi, miser };
+}
+
+function liveTop(roster) {
+  return [...(roster || [])]
+    .sort((a, b) =>
+      (Number(b.kills) || 0) - (Number(a.kills) || 0) ||
+      (Number(a.deaths) || 0) - (Number(b.deaths) || 0) ||
+      (Number(b.cashEarned) || 0) - (Number(a.cashEarned) || 0)
+    )
+    .slice(0, 8)
+    .map((player, index) => {
+      const kills = Number(player.kills) || 0;
+      const deaths = Number(player.deaths) || 0;
+      return `${index + 1}. **${player.name}** — ${kills}/${deaths} · K/D **${formatKd(kills, deaths)}** · +$${Number(player.cashEarned) || 0}`;
+    })
+    .join("\n") || "Игроков пока нет.";
+}
+
 function liveEmbed(poller, servers) {
   const embed = new EmbedBuilder()
     .setColor(COLOR)
-    .setTitle("Идущий бой")
+    .setTitle("⚔️ ИДУЩИЙ БОЙ")
     .setDescription("Текущая ситуация на сервере WARDOGS")
     .setTimestamp(new Date());
 
@@ -42,25 +141,51 @@ function liveEmbed(poller, servers) {
     }
 
     const status = state.status;
-    const scores = (status.factionScores || [])
-      .map((row) => `${row.name}: **${Number(row.score) || 0}**`)
-      .join(" · ") || "Счёт недоступен";
-    const top = [...(state.roster || [])]
-      .sort((a, b) => (Number(b.kills) || 0) - (Number(a.kills) || 0) || (Number(b.cashEarned) || 0) - (Number(a.cashEarned) || 0))
-      .slice(0, 8)
-      .map((player, index) => `${index + 1}. **${player.name}** — ${player.kills}/${player.deaths} · +$${player.cashEarned || 0}`)
-      .join("\n") || "Игроков пока нет.";
+    const roster = state.roster || [];
+    const scores = scoreTable(status);
+    const awards = currentAwards(roster);
+    const maxPlayers = status.players?.max || "—";
+    const matchMin = Math.floor((Number(status.matchSeconds) || 0) / 60);
 
-    embed.addFields({
-      name: status.serverName || server.name,
-      value: [
-        `**${status.map || "—"}** · ${prettyMode(status.experiences?.[0])}`,
-        `Онлайн: **${state.roster.length}/${status.players?.max || "—"}** · время боя: **${Math.floor((Number(status.matchSeconds) || 0) / 60)} мин**`,
-        scores,
-        `**Топ текущего боя**\n${top}`,
-      ].join("\n"),
-      inline: false,
-    });
+    embed.addFields(
+      {
+        name: status.serverName || server.name,
+        value: [
+          `**${status.map || "—"}** · ${prettyMode(status.experiences?.[0])}`,
+          `👥 Онлайн: **${roster.length}/${maxPlayers}**`,
+          `⏱ Время боя: **${matchMin} мин**`,
+        ].join("\n"),
+        inline: false,
+      },
+      {
+        name: "🏆 ЛИДИРУЕТ",
+        value: leaderText(scores),
+        inline: false,
+      },
+      {
+        name: "СЧЁТ КОМАНД",
+        value: scoreText(scores),
+        inline: false,
+      },
+      {
+        name: "БОЙЦЫ",
+        value: factionText(roster, scores),
+        inline: false,
+      },
+      {
+        name: "ЛИДЕРЫ БОЯ",
+        value: [
+          awards.dogi ? `🔥 **ДОГИ МЕН сейчас:** ${awards.dogi.name} — **${Number(awards.dogi.kills) || 0}** килов` : "🔥 **ДОГИ МЕН сейчас:** —",
+          awards.miser ? `💰 **Скряга сейчас:** ${awards.miser.name} — **+$${Number(awards.miser.cashEarned) || 0}**` : "💰 **Скряга сейчас:** —",
+        ].join("\n"),
+        inline: false,
+      },
+      {
+        name: "ТОП БОЯ",
+        value: liveTop(roster).slice(0, 1024),
+        inline: false,
+      },
+    );
   }
   return embed;
 }
