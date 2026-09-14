@@ -1,9 +1,10 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { EmbedBuilder, REST, Routes } from "discord.js";
-import { formatKd, prettyMode } from "./logic.js";
+import { formatKd, matchAwards, prettyMode } from "./logic.js";
 
 const LIVE_REFRESH_MS = 15_000;
+const RESULT_RETRY_MS = 60_000;
 const COLOR = 0xe8a317;
 const ZARUBA_LOGO = "https://i.ibb.co/rRhNwJc1/4.png";
 
@@ -197,20 +198,26 @@ function resultEmbed(result) {
   const snapshots = [...(result?.snapshots || [])]
     .filter((row) => row?.steamId)
     .sort((a, b) => (Number(b.kills) || 0) - (Number(a.kills) || 0) || (Number(a.deaths) || 0) - (Number(b.deaths) || 0));
-  const awards = result?.awards || {};
+  const awards = result?.awards || matchAwards(snapshots);
   const durationMin = Math.max(0, Math.floor(((Number(result?.endedAt) || 0) - (Number(result?.startedAt) || 0)) / 60000));
   const winners = (result?.winners || []).filter(Boolean);
   const top = snapshots.slice(0, 10)
-    .map((row, index) => `${index + 1}. **${row.name || row.steamId}** — ${Number(row.kills) || 0}/${Number(row.deaths) || 0} · +$${Number(row.cashEarned) || 0}`)
+    .map((row, index) => {
+      const kills = Number(row.kills) || 0;
+      const deaths = Number(row.deaths) || 0;
+      return `${index + 1}. **${row.name || row.steamId}** — ${kills}/${deaths} · K/D **${formatKd(kills, deaths)}** · +$${Number(row.cashEarned) || 0}`;
+    })
     .join("\n") || "Нет данных.";
 
-  const embed = new EmbedBuilder()
+  return new EmbedBuilder()
     .setColor(COLOR)
-    .setTitle("Итоги боя")
+    .setAuthor({ name: "ZARUBA", iconURL: ZARUBA_LOGO })
+    .setTitle("🏁 ИТОГИ БОЯ")
+    .setThumbnail(ZARUBA_LOGO)
     .setDescription([
       `**${result?.server?.name || "WARDOGS"}**`,
       `${result?.map || "—"} · ${result?.mode || "—"} · ${durationMin} мин`,
-      winners.length ? `Победитель: **${winners.join(", ")}**` : null,
+      winners.length ? `🏆 Победитель: **${winners.join(", ")}**` : null,
     ].filter(Boolean).join("\n"))
     .addFields(
       {
@@ -223,20 +230,76 @@ function resultEmbed(result) {
         value: awards.miser ? `**${awards.miser.name}** — **+$${Number(awards.miser.cashEarned) || 0}** за бой` : "—",
         inline: true,
       },
-      { name: "Топ боя", value: top.slice(0, 1024), inline: false },
+      { name: "ТОП БОЯ", value: top.slice(0, 1024), inline: false },
     )
     .setTimestamp(new Date(result?.endedAt || Date.now()));
-  return embed;
+}
+
+function resultKey(result) {
+  if (!result) return "";
+  return `${result?.server?.id || "?"}:${Number(result.startedAt) || 0}`;
+}
+
+function latestStoredResult(store, servers) {
+  const db = store?.db;
+  if (!db) return null;
+  const meta = db.prepare(`
+    SELECT server_id, started_at, MAX(ended_at) AS ended_at,
+           MAX(map) AS map, MAX(mode) AS mode
+    FROM match_stats
+    GROUP BY server_id, started_at
+    ORDER BY ended_at DESC
+    LIMIT 1
+  `).get();
+  if (!meta) return null;
+
+  const snapshots = db.prepare(`
+    SELECT steam_id AS steamId, name, faction, kills, deaths,
+           cash_end AS cashEnd, cash_peak AS cashPeak,
+           cash_earned AS cashEarned, won
+    FROM match_stats
+    WHERE server_id = ? AND started_at = ?
+    ORDER BY kills DESC, deaths ASC
+  `).all(meta.server_id, meta.started_at);
+  if (!snapshots.length) return null;
+
+  const winners = [...new Set(snapshots.filter((row) => Number(row.won) === 1 && row.faction).map((row) => row.faction))];
+  return {
+    server: servers.find((server) => String(server.id) === String(meta.server_id)) || { id: String(meta.server_id), name: `СЕРВЕР ${meta.server_id}` },
+    map: meta.map || "",
+    mode: meta.mode || "",
+    startedAt: Number(meta.started_at) || 0,
+    endedAt: Number(meta.ended_at) || Date.now(),
+    winners,
+    snapshots,
+    awards: matchAwards(snapshots),
+  };
+}
+
+function errorText(error) {
+  const parts = [error?.message];
+  if (error?.code) parts.push(`code=${error.code}`);
+  if (error?.status) parts.push(`status=${error.status}`);
+  return parts.filter(Boolean).join(" · ") || String(error);
 }
 
 export function startAutomaticDiscordOutput({ token, liveChannelId, resultsChannelId, databasePath, poller, servers }) {
   if (!token || (!liveChannelId && !resultsChannelId)) return null;
   const rest = new REST({ version: "10" }).setToken(token);
   const file = stateFile(databasePath);
-  const saved = safeRead(file);
-  let liveMessageId = saved.liveMessageId || "";
+  const outputState = safeRead(file);
+  let liveMessageId = outputState.liveMessageId || "";
+  let lastResultKey = outputState.lastResultKey || "";
   let lastLiveAt = 0;
+  let lastResultRetryAt = 0;
   let liveBusy = false;
+  let resultBusy = false;
+
+  function saveState() {
+    outputState.liveMessageId = liveMessageId;
+    outputState.lastResultKey = lastResultKey;
+    safeWrite(file, outputState);
+  }
 
   async function updateLive(force = false) {
     if (!liveChannelId || liveBusy) return;
@@ -256,29 +319,59 @@ export function startAutomaticDiscordOutput({ token, liveChannelId, resultsChann
       }
       const created = await rest.post(Routes.channelMessages(liveChannelId), { body });
       liveMessageId = String(created?.id || "");
-      safeWrite(file, { ...saved, liveMessageId });
+      saveState();
       console.log(`discord: идущий бой -> ${liveChannelId}`);
     } catch (error) {
-      console.warn("discord live:", error.message);
+      console.warn("discord live:", errorText(error));
     } finally {
       liveBusy = false;
     }
   }
 
-  async function postResult(result) {
-    if (!resultsChannelId) return;
+  async function postResult(result, force = false) {
+    if (!resultsChannelId || resultBusy || !result) return false;
+    const key = resultKey(result);
+    if (!force && key && key === lastResultKey) return true;
+    resultBusy = true;
     try {
       await rest.post(Routes.channelMessages(resultsChannelId), {
         body: { embeds: [resultEmbed(result).toJSON()] },
       });
-      console.log(`discord: итоги боя -> ${resultsChannelId}`);
+      lastResultKey = key;
+      saveState();
+      console.log(`discord: итоги боя -> ${resultsChannelId} · ${key}`);
+      return true;
     } catch (error) {
-      console.warn("discord results:", error.message);
+      console.warn(`discord results [${resultsChannelId}]:`, errorText(error));
+      return false;
+    } finally {
+      resultBusy = false;
     }
   }
 
-  poller.onOutputTick = () => void updateLive(false);
-  poller.onMatchEnd = (result) => postResult(result);
+  async function recoverLatestResult(force = false) {
+    if (!resultsChannelId || resultBusy) return;
+    const now = Date.now();
+    if (!force && now - lastResultRetryAt < RESULT_RETRY_MS) return;
+    lastResultRetryAt = now;
+    const latest = latestStoredResult(poller.store, servers);
+    if (!latest) return;
+    const key = resultKey(latest);
+    if (key && key === lastResultKey) return;
+    console.log(`discord: найден неотправленный итог ${key}, пробую отправить`);
+    await postResult(latest);
+  }
+
+  poller.onOutputTick = () => {
+    void updateLive(false);
+    void recoverLatestResult(false);
+  };
+  poller.onMatchEnd = (result) => {
+    console.log(`match: завершён ${result?.server?.name || "?"} · ${result?.map || "—"} · ${resultKey(result)}`);
+    void postResult(result);
+  };
+
   void updateLive(true);
-  return { updateLive, postResult };
+  setTimeout(() => void recoverLatestResult(true), 5_000);
+  return { updateLive, postResult, recoverLatestResult };
 }
