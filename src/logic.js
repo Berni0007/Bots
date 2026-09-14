@@ -1,3 +1,5 @@
+export const MATCH_WIN_SCORE = 100;
+
 export function isSteamId64(id) {
   return /^7656119\d{10}$/.test(String(id || "").trim());
 }
@@ -17,10 +19,27 @@ export function normalizePlayer(raw) {
 export function detectMatchReset(prev, next) {
   if (!prev || !next) return false;
   if (prev.map && next.map && prev.map !== next.map) return true;
-  if (prev.lighting && next.lighting && prev.lighting !== next.lighting) return true;
   const a = Number(prev.matchSeconds) || 0;
   const b = Number(next.matchSeconds) || 0;
   return a >= 45 && b < 40 && b + 20 < a;
+}
+
+function maxFactionScore(status) {
+  return Math.max(
+    0,
+    ...(status?.factionScores || []).map((row) => Number(row?.score) || 0),
+  );
+}
+
+export function detectScoreWin(status) {
+  return maxFactionScore(status) >= MATCH_WIN_SCORE;
+}
+
+export function detectScoreReset(prev, next) {
+  if (!prev || !next) return false;
+  const before = maxFactionScore(prev);
+  const after = maxFactionScore(next);
+  return before >= 10 && after <= 4 && after < before * 0.35;
 }
 
 export function detectKillReset(held, incoming) {
@@ -100,17 +119,22 @@ export function applyTick(state, input) {
   const prevIds = new Set(state.online.keys());
   const events = [];
 
-  const matchReset =
-    detectMatchReset(state.status, status) || detectKillReset([...state.match.bySteam.values()], players);
-  if (matchReset) {
-    events.push({
-      type: "match_end",
-      winners: winningFactions(state.status?.factionScores),
-      map: state.status?.map || state.match.map || "",
-      mode: prettyMode(state.status?.experiences?.[0]) || state.match.mode,
-      startedAt: state.match.startedAt,
-      snapshots: [...state.match.bySteam.values()],
-    });
+  const matchBoundary =
+    detectMatchReset(state.status, status) ||
+    detectScoreReset(state.status, status) ||
+    detectKillReset([...state.match.bySteam.values()], players);
+
+  if (matchBoundary) {
+    if (!state.match.ended && state.match.bySteam.size) {
+      events.push({
+        type: "match_end",
+        winners: winningFactions(state.status?.factionScores),
+        map: state.status?.map || state.match.map || "",
+        mode: prettyMode(state.status?.experiences?.[0]) || state.match.mode,
+        startedAt: state.match.startedAt,
+        snapshots: [...state.match.bySteam.values()],
+      });
+    }
     state.match = newMatch(now, status);
   }
 
@@ -137,7 +161,13 @@ export function applyTick(state, input) {
       }
     }
 
-    const snap = state.match.bySteam.get(player.steamId) || {
+    const existing = state.match.bySteam.get(player.steamId);
+    if (state.match.ended) {
+      player.cashEarned = Number(existing?.cashEarned) || 0;
+      continue;
+    }
+
+    const snap = existing || {
       steamId: player.steamId,
       name: player.name,
       faction: player.faction,
@@ -160,6 +190,22 @@ export function applyTick(state, input) {
     snap.cashPeak = Math.max(snap.cashPeak, player.cash);
     player.cashEarned = snap.cashEarned;
     state.match.bySteam.set(player.steamId, snap);
+  }
+
+  // WARDOGS KOTH ends the moment a faction reaches 100 points. Real live
+  // RCON builds can omit matchSeconds/scoreCap, so this is the reliable
+  // immediate end-of-match signal instead of waiting for the next map load.
+  if (!state.match.ended && detectScoreWin(status) && state.match.bySteam.size) {
+    state.match.ended = true;
+    state.match.endedAt = now;
+    events.push({
+      type: "match_end",
+      winners: winningFactions(status.factionScores),
+      map: status.map || state.match.map || "",
+      mode: prettyMode(status.experiences?.[0]) || state.match.mode,
+      startedAt: state.match.startedAt,
+      snapshots: [...state.match.bySteam.values()],
+    });
   }
 
   for (const steamId of prevIds) {
@@ -195,6 +241,8 @@ export function emptyState() {
 function newMatch(now, status) {
   return {
     startedAt: now,
+    ended: false,
+    endedAt: 0,
     map: status.map || "",
     mode: prettyMode(status.experiences?.[0]),
     bySteam: new Map(),
