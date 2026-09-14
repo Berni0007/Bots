@@ -1,5 +1,6 @@
 import { dirname } from "node:path";
 import { startBot } from "./bot.js";
+import { startAutomaticDiscordOutput } from "./auto-output.js";
 import { config, envFileExists, trackedServers } from "./config.js";
 import { openDb } from "./db.js";
 import { startMockRcon } from "./mock-rcon.js";
@@ -36,6 +37,16 @@ async function main() {
     appId: config.appId,
     dataDir: dirname(config.databasePath),
   });
+
+  startAutomaticDiscordOutput({
+    token: config.discordToken,
+    liveChannelId: config.liveChannelId,
+    resultsChannelId: config.matchResultsChannelId,
+    databasePath: config.databasePath,
+    poller,
+    servers,
+  });
+
   poller.start();
   console.log(`поллер: ${servers.map((server) => server.name).join(", ")} каждые ${config.pollMs} мс`);
 
