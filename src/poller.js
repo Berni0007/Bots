@@ -18,6 +18,8 @@ export class Poller {
     this.busy = false;
     this.steamQueue = new Set();
     this.onTick = null;
+    this.onOutputTick = null;
+    this.onMatchEnd = null;
     this.lastBoardAt = 0;
   }
 
@@ -53,6 +55,7 @@ export class Poller {
       await this.flushSteam();
       this.persistBoard(matchEnded);
       this.onTick?.();
+      this.onOutputTick?.();
     } finally {
       this.busy = false;
     }
@@ -118,6 +121,16 @@ export class Poller {
           mode: event.mode || "",
           endedAt: now,
         });
+        const matchResult = {
+          server,
+          map: event.map || "",
+          mode: event.mode || "",
+          startedAt: event.startedAt || state.match.startedAt,
+          endedAt: now,
+          winners: event.winners || [],
+          snapshots: event.snapshots || [],
+          awards,
+        };
         for (const snapshot of event.snapshots) {
           this.store.recordMatch(server.id, snapshot, {
             map: event.map,
@@ -125,6 +138,11 @@ export class Poller {
             startedAt: event.startedAt || state.match.startedAt,
             endedAt: now,
             winners: event.winners,
+          });
+        }
+        if (this.onMatchEnd) {
+          void Promise.resolve(this.onMatchEnd(matchResult)).catch((error) => {
+            console.warn("match result:", error instanceof Error ? error.message : error);
           });
         }
       }
