@@ -5,6 +5,7 @@ import { formatKd, prettyMode } from "./logic.js";
 
 const LIVE_REFRESH_MS = 15_000;
 const COLOR = 0xe8a317;
+const ZARUBA_LOGO = "https://i.ibb.co/rRhNwJc1/4.png";
 
 function safeRead(path) {
   try {
@@ -128,8 +129,10 @@ function liveTop(roster) {
 function liveEmbed(poller, servers) {
   const embed = new EmbedBuilder()
     .setColor(COLOR)
+    .setAuthor({ name: "ZARUBA", iconURL: ZARUBA_LOGO })
     .setTitle("⚔️ ИДУЩИЙ БОЙ")
     .setDescription("Текущая ситуация на сервере WARDOGS")
+    .setThumbnail(ZARUBA_LOGO)
     .setTimestamp(new Date());
 
   for (const server of servers) {
