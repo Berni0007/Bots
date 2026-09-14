@@ -43,6 +43,8 @@ export const config = {
   discordToken: env("DISCORD_TOKEN") || env("DISCORD_BOT_TOKEN") || env("BOT_TOKEN"),
   discordClientId: env("DISCORD_CLIENT_ID"),
   discordGuildId: env("DISCORD_GUILD_ID"),
+  liveChannelId: env("LIVE_CHANNEL_ID", "1548325425678262313"),
+  matchResultsChannelId: env("MATCH_RESULTS_CHANNEL_ID", "1549060892233040013"),
   steamApiKey: env("STEAM_API_KEY"),
   appId: env("WARDOGS_APP_ID", "1867240"),
   databasePath: resolve(root, env("DATABASE_PATH", defaultDatabasePath)),
