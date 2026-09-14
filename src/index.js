@@ -3,6 +3,7 @@ import { startBot } from "./bot.js";
 import { startAutomaticDiscordOutput } from "./auto-output.js";
 import { config, envFileExists, trackedServers } from "./config.js";
 import { openDb } from "./db.js";
+import { diagnoseDiscordChannels } from "./discord-diagnostic.js";
 import { startMockRcon } from "./mock-rcon.js";
 import { Poller } from "./poller.js";
 
@@ -46,6 +47,16 @@ async function main() {
     poller,
     servers,
   });
+
+  if (config.discordToken) {
+    setTimeout(() => {
+      void diagnoseDiscordChannels({
+        token: config.discordToken,
+        liveChannelId: config.liveChannelId,
+        resultsChannelId: config.matchResultsChannelId,
+      });
+    }, 2_000);
+  }
 
   poller.start();
   console.log(`поллер: ${servers.map((server) => server.name).join(", ")} каждые ${config.pollMs} мс`);
