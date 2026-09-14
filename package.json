@@ -9,11 +9,10 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "poller": "node src/index.js --poller-only",
-    "mock": "node src/index.js --mock",
-    "test": "node --test test/*.test.js"
+    "mock": "node src/index.js --mock"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "better-sqlite3": "12.4.1",
