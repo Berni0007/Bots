@@ -76,6 +76,27 @@ CREATE TABLE IF NOT EXISTS server_stats (
   PRIMARY KEY (steam_id, server_id)
 );
 
+CREATE TABLE IF NOT EXISTS seed_rounds (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  server_id TEXT NOT NULL,
+  started_at INTEGER NOT NULL,
+  ended_at INTEGER,
+  threshold INTEGER NOT NULL DEFAULT 30,
+  status TEXT NOT NULL DEFAULT 'active'
+);
+
+CREATE TABLE IF NOT EXISTS seed_participants (
+  round_id INTEGER NOT NULL,
+  discord_id TEXT NOT NULL,
+  steam_id TEXT NOT NULL,
+  joined_at INTEGER NOT NULL,
+  seen_on_server INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (round_id, steam_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_seed_round_active ON seed_rounds(server_id, status);
+CREATE INDEX IF NOT EXISTS idx_seed_participants_round ON seed_participants(round_id);
+
 CREATE INDEX IF NOT EXISTS idx_players_kills ON players(kills DESC);
 CREATE INDEX IF NOT EXISTS idx_players_hours ON players(seconds_played DESC);
 CREATE INDEX IF NOT EXISTS idx_match_steam ON match_stats(steam_id, ended_at);
@@ -263,6 +284,38 @@ export class StatsStore {
       GROUP BY b.steam_id
       ORDER BY n DESC
       LIMIT 3
+    `);
+    this._activeSeedRound = db.prepare(`
+      SELECT * FROM seed_rounds
+      WHERE server_id = ? AND status = 'active'
+      ORDER BY id DESC LIMIT 1
+    `);
+    this._createSeedRound = db.prepare(`
+      INSERT INTO seed_rounds (server_id, started_at, threshold, status)
+      VALUES (@serverId, @startedAt, @threshold, 'active')
+    `);
+    this._joinSeed = db.prepare(`
+      INSERT INTO seed_participants (round_id, discord_id, steam_id, joined_at)
+      VALUES (@roundId, @discordId, @steamId, @joinedAt)
+      ON CONFLICT(round_id, steam_id) DO UPDATE SET
+        discord_id = excluded.discord_id
+    `);
+    this._markSeedSeen = db.prepare(`
+      UPDATE seed_participants
+      SET seen_on_server = 1
+      WHERE round_id = @roundId AND steam_id = @steamId
+    `);
+    this._finishSeedRound = db.prepare(`
+      UPDATE seed_rounds
+      SET status = 'completed', ended_at = @endedAt
+      WHERE id = @roundId AND status = 'active'
+    `);
+    this._seedParticipants = db.prepare(`
+      SELECT sp.*, COALESCE(p.name, sp.steam_id) AS name
+      FROM seed_participants sp
+      LEFT JOIN players p ON p.steam_id = sp.steam_id
+      WHERE sp.round_id = ?
+      ORDER BY sp.joined_at ASC
     `);
   }
 
@@ -490,6 +543,41 @@ export class StatsStore {
 
   updateAvatar(steamId, avatar, at) {
     this._setAvatar.run({ steamId, avatar: avatar || null, at });
+  }
+
+  activeSeedRound(serverId) {
+    return this._activeSeedRound.get(String(serverId)) || null;
+  }
+
+  ensureSeedRound(serverId, threshold, startedAt = Date.now()) {
+    const existing = this.activeSeedRound(serverId);
+    if (existing) return existing;
+    const result = this._createSeedRound.run({
+      serverId: String(serverId),
+      startedAt,
+      threshold: Number(threshold) || 30,
+    });
+    return this.db.prepare(`SELECT * FROM seed_rounds WHERE id = ?`).get(result.lastInsertRowid);
+  }
+
+  joinSeed(roundId, discordId, steamId, joinedAt = Date.now()) {
+    this._joinSeed.run({ roundId, discordId, steamId, joinedAt });
+    return this._seedParticipants.all(roundId);
+  }
+
+  markSeedSeen(roundId, steamIds) {
+    for (const steamId of steamIds || []) {
+      this._markSeedSeen.run({ roundId, steamId });
+    }
+  }
+
+  completeSeedRound(roundId, endedAt = Date.now()) {
+    this._finishSeedRound.run({ roundId, endedAt });
+    return this._seedParticipants.all(roundId);
+  }
+
+  seedParticipants(roundId) {
+    return this._seedParticipants.all(roundId);
   }
 
   panel(channelId) {
