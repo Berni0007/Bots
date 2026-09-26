@@ -28,6 +28,7 @@ import {
   removeAllPanels,
   removePanel,
   refreshAllPanels,
+  dogCardMessage,
   statsCardMessage,
   statsModal,
   statsTextMessage,
@@ -45,6 +46,7 @@ const METRICS = [
 ];
 
 const usageCd = new Cooldown(60_000);
+const DOG_CHANNEL_ID = "1553370010158759969";
 
 function serverChoices(servers) {
   return servers.slice(0, 25).map((server) => ({ name: server.name, value: server.id }));
@@ -65,6 +67,19 @@ export function buildCommands(servers) {
     )
     .addUserOption((option) =>
       option.setName("игрок").setDescription("Участник Discord").setDescriptionLocalization("ru", "Участник Discord"),
+    );
+
+  const dog = new SlashCommandBuilder()
+    .setName("dog")
+    .setDescription("Личное боевое досье WARDOGS")
+    .addStringOption((option) =>
+      option
+        .setName("ник")
+        .setDescription("Ник или SteamID64")
+        .setAutocomplete(true),
+    )
+    .addUserOption((option) =>
+      option.setName("игрок").setDescription("Участник Discord"),
     );
 
   const top = new SlashCommandBuilder()
@@ -126,7 +141,7 @@ export function buildCommands(servers) {
     .addSubcommand((sub) => sub.setName("убрать").setDescription("Снять панель с этого канала"))
     .addSubcommand((sub) => sub.setName("убрать-все").setDescription("Снять все панели на сервере"));
 
-  return [stats, top, live, link, unlink, panel];
+  return [stats, dog, top, live, link, unlink, panel];
 }
 
 function dataDir() {
@@ -277,6 +292,9 @@ export async function startBot({ token, clientId, guildId, store, poller, server
       if (interaction.commandName === "stats") {
         if (await denyCooldown(interaction)) return;
         if (await cmdStats(interaction, store, poller, servers)) usageCd.hit(interaction.user.id);
+      } else if (interaction.commandName === "dog") {
+        if (await denyCooldown(interaction)) return;
+        if (await cmdDog(interaction, store, poller, servers)) usageCd.hit(interaction.user.id);
       } else if (interaction.commandName === "top") {
         if (await denyCooldown(interaction)) return;
         if (await cmdTop(interaction, store, servers, interaction.options.getString("метрика"))) usageCd.hit(interaction.user.id);
@@ -432,6 +450,59 @@ async function replyStats(interaction, store, poller, servers, raw) {
     payload = statsTextMessage(store, player, view);
   }
   return replyPrivate(interaction, payload, `Статистика **${view.name}** в личке.`);
+}
+
+
+async function cmdDog(interaction, store, poller, servers) {
+  if (interaction.channelId !== DOG_CHANNEL_ID) {
+    await interaction.reply({
+      content: `Команда /dog работает только в <#${DOG_CHANNEL_ID}>.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return false;
+  }
+
+  const raw = interaction.options.getString("ник") || "";
+  const found = resolveSteamId(store, interaction, raw);
+  if (!found.steamId) {
+    await interaction.reply({
+      content: found.note || "Игрок не найден.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return false;
+  }
+
+  const player = store.player(found.steamId);
+  if (!player) {
+    await interaction.reply({
+      content: `В базе нет \`${found.steamId}\`.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return false;
+  }
+
+  const view = buildView(store, poller, servers, player);
+  if (!view.avatar) {
+    try {
+      const profile = await fetchCommunityProfile(player.steam_id);
+      if (profile?.avatar) {
+        store.updateAvatar(player.steam_id, profile.avatar, Date.now());
+        view.avatar = profile.avatar;
+      }
+    } catch (error) {
+      console.warn("steam avatar /dog:", error.message);
+    }
+  }
+
+  if (!view.avatar) {
+    const own = store.linkForDiscord(interaction.user.id);
+    if (own?.steam_id === player.steam_id) {
+      view.avatar = interaction.user.displayAvatarURL({ extension: "png", size: 256, forceStatic: true });
+    }
+  }
+
+  await interaction.reply(dogCardMessage(view));
+  return true;
 }
 
 async function cmdStats(interaction, store, poller, servers) {
