@@ -522,6 +522,9 @@ export async function startBot({ token, clientId, guildId, store, poller, server
           ["SendMessages", PermissionFlagsBits.SendMessages],
           ["EmbedLinks", PermissionFlagsBits.EmbedLinks],
           ["ReadMessageHistory", PermissionFlagsBits.ReadMessageHistory],
+          ...(channel?.isThread?.()
+            ? [["SendMessagesInThreads", PermissionFlagsBits.SendMessagesInThreads]]
+            : []),
         ];
         const missing = perms
           ? required.filter(([, bit]) => !perms.has(bit)).map(([name]) => name)
@@ -547,7 +550,9 @@ export async function startBot({ token, clientId, guildId, store, poller, server
           const code = error?.code ? ` code=${error.code}` : "";
           const status = error?.status ? ` status=${error.status}` : "";
           await interaction.editReply({
-            content: `Не смог отправить панель: ${error.message}${code}${status}`,
+            content:
+              `Не смог отправить панель: ${error.message}${code}${status}\n` +
+              `Тип канала: ${channel?.type ?? "unknown"} · thread: ${Boolean(channel?.isThread?.())}`,
           });
         }
         return;
