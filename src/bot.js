@@ -30,6 +30,15 @@ const usageCd = new Cooldown(60_000);
 const DOG_CHANNEL_ID = "1553370010158759969";
 
 export function buildCommands() {
+  const dog = new SlashCommandBuilder()
+    .setName("dog")
+    .setDescription("Личное боевое досье WARDOGS")
+    .addStringOption((option) =>
+      option
+        .setName("ник")
+        .setDescription("Ник или SteamID64")
+        .setAutocomplete(true),
+    );
 
 
   const seedPanel = new SlashCommandBuilder()
@@ -37,7 +46,7 @@ export function buildCommands() {
     .setDescription("Разместить постоянную панель SEED в этом канале")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
-  return [seedPanel];
+  return [dog, seedPanel];
 }
 
 async function publishSeedPanel(client, store, poller, servers) {
@@ -323,7 +332,10 @@ export async function startBot({ token, clientId, guildId, store, poller, server
         return;
       }
       if (!interaction.isChatInputCommand()) return;
-      if (interaction.commandName === "seed-panel") {
+      if (interaction.commandName === "dog") {
+        if (await denyCooldown(interaction)) return;
+        if (await cmdDog(interaction, store, poller, servers)) usageCd.hit(interaction.user.id);
+      } else if (interaction.commandName === "seed-panel") {
         if (interaction.channelId !== String(config.seedChannelId || "").trim()) {
           await interaction.reply({
             content: `Эту панель ставим только в <#${config.seedChannelId}>.`,
@@ -473,4 +485,87 @@ async function replyStats(interaction, store, poller, servers, raw) {
   return replyPrivate(interaction, payload, `Статистика **${view.name}** в личке.`);
 }
 
+
+async function cmdDog(interaction, store, poller, servers) {
+  if (interaction.channelId !== DOG_CHANNEL_ID) {
+    await interaction.reply({
+      content: `Команда /dog работает только в <#${DOG_CHANNEL_ID}>.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return false;
+  }
+
+  const raw = interaction.options.getString("ник") || "";
+  const found = resolveSteamId(store, interaction, raw);
+  if (!found.steamId) {
+    await interaction.reply({
+      content: found.note || "Игрок не найден.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return false;
+  }
+
+  const player = store.player(found.steamId);
+  if (!player) {
+    await interaction.reply({
+      content: `В базе нет \`${found.steamId}\`.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return false;
+  }
+
+  const view = buildView(store, poller, servers, player);
+  view.bannerUrl = config.dogBannerUrl || "";
+
+  if (config.warconApiKey) {
+    try {
+      const warcon = await fetchWarconCareer(player.steam_id);
+      const career = warcon?.career;
+      if (career) {
+        view.warcon = true;
+        view.careerKills = Number(career.kills) || 0;
+        view.careerDeaths = Number(career.deaths) || 0;
+        view.careerKd = view.careerDeaths > 0
+          ? (view.careerKills / view.careerDeaths).toFixed(2)
+          : view.careerKills > 0 ? String(view.careerKills) : "0.00";
+        view.matches = Number(career.matches) || 0;
+        view.wins = Number(career.wins) || 0;
+        view.winrate = view.matches > 0 ? Math.round((view.wins / view.matches) * 100) : 0;
+        view.hours = `${Math.floor((Number(career.minutes) || 0) / 60)} ч ${Math.round((Number(career.minutes) || 0) % 60)} мин`;
+        view.headshots = Number(career.headshots) || 0;
+        view.vehicleKills = Number(career.vehicleKills) || 0;
+        view.longestM = career.longestM == null ? null : Number(career.longestM);
+        view.killStreak = Number(career.killStreak) || 0;
+        view.zarubaRank = career.rank?.org ?? career.rank?.server ?? null;
+      }
+      if (!view.avatar && warcon?.dossier?.steam?.avatar) {
+        view.avatar = warcon.dossier.steam.avatar;
+      }
+    } catch (error) {
+      console.warn("warcon /dog:", error.message);
+    }
+  }
+
+  if (!view.avatar) {
+    try {
+      const profile = await fetchCommunityProfile(player.steam_id);
+      if (profile?.avatar) {
+        store.updateAvatar(player.steam_id, profile.avatar, Date.now());
+        view.avatar = profile.avatar;
+      }
+    } catch (error) {
+      console.warn("steam avatar /dog:", error.message);
+    }
+  }
+
+  if (!view.avatar) {
+    const own = store.linkForDiscord(interaction.user.id);
+    if (own?.steam_id === player.steam_id) {
+      view.avatar = interaction.user.displayAvatarURL({ extension: "png", size: 256, forceStatic: true });
+    }
+  }
+
+  await interaction.reply(dogCardMessage(view));
+  return true;
+}
 
