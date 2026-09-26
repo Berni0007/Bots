@@ -140,39 +140,36 @@ export function dogCardMessage(view) {
     Number(value || 0).toLocaleString("ru-RU").replace(/\u00A0/g, " ");
 
   const career = [
-    `Убийства   ${view.careerKills}`,
-    `Смерти     ${view.careerDeaths}`,
-    `K/D        ${view.careerKd}`,
-    `Матчи      ${view.matches}`,
-    `Победы     ${view.wins}`,
-    `Win Rate   ${view.winrate}%`,
-    `Время      ${view.hours}`,
+    `Убийства    ${view.careerKills}`,
+    `Смерти      ${view.careerDeaths}`,
+    `K/D         ${view.careerKd}`,
+    `Матчи       ${view.matches}`,
+    `Победы      ${view.wins}`,
+    `Win Rate    ${view.winrate}%`,
+    `Время       ${view.hours}`,
   ].join("\n");
 
   const live = view.live
     ? [
-        `${view.live.server} · ${view.live.map || "—"}`,
+        `${view.live.server}`,
+        `${view.live.map || "—"}`,
         "",
-        `Убийства   ${view.liveKills}`,
-        `Смерти     ${view.liveDeaths}`,
-        `K/D        ${view.liveKd}`,
-        `Кэш        $${money(view.liveCash)}`,
+        `Убийства    ${view.liveKills}`,
+        `Смерти      ${view.liveDeaths}`,
+        `K/D         ${view.liveKd}`,
+        `Кэш         $${money(view.liveCash)}`,
       ].join("\n")
     : "Игрок сейчас не в бою";
 
-  const combat = [
-    `Место ZARUBA   ${view.zarubaRank ? `#${view.zarubaRank}` : "—"}`,
-    `Headshots      ${view.headshots ?? "—"}`,
-    `Техника        ${view.vehicleKills ?? "—"}`,
-    `Дальний килл   ${view.longestM != null ? `${Math.round(Number(view.longestM))} м` : "—"}`,
-    `Лучший стрик   ${view.killStreak ?? "—"}`,
+  const profile = [
+    `Фракция          ${view.faction || "—"}`,
+    `Любимая карта    ${view.map || "—"}`,
+    `Рекорд денег     $${money(view.cashBest)}`,
   ].join("\n");
 
-  const preferences = [
-    `Фракция: **${view.faction || "—"}**`,
-    `Карта: **${view.map || "—"}**`,
-    `Рекорд денег: **$${money(view.cashBest)}**`,
-  ].join("\n");
+  const mates = view.mates?.length
+    ? view.mates.map((name, index) => `${index + 1}. ${name}`).join("\n")
+    : "—";
 
   const embed = new EmbedBuilder()
     .setColor(COLOR)
@@ -191,27 +188,24 @@ export function dogCardMessage(view) {
       },
       {
         name: "ТЕКУЩИЙ БОЙ",
-        value: view.live ? `\`\`\`text\n${live}\n\`\`\`` : `_${live}_`,
+        value: view.live
+          ? `\`\`\`text\n${live}\n\`\`\``
+          : `_${live}_`,
         inline: true,
-      },
-      {
-        name: "БОЕВЫЕ ПОКАЗАТЕЛИ",
-        value: `\`\`\`text\n${combat}\n\`\`\``,
-        inline: false,
       },
       {
         name: "ПРОФИЛЬ",
-        value: preferences,
-        inline: true,
+        value: `\`\`\`text\n${profile}\n\`\`\``,
+        inline: false,
       },
       {
-        name: "ЧАСТО В ОТРЯДЕ",
-        value: view.mates?.length ? view.mates.join("\n") : "—",
-        inline: true,
+        name: "ЧАСТО ИГРАЕТ С",
+        value: `\`\`\`text\n${mates}\n\`\`\``,
+        inline: false,
       },
     )
     .setFooter({
-      text: `SteamID64: ${view.steamId} · ZARUBA × WARDOGS · Warcon + Live RCON`,
+      text: `SteamID64: ${view.steamId} · ZARUBA × WARDOGS`,
     })
     .setTimestamp();
 
