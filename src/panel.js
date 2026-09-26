@@ -163,7 +163,7 @@ export function dogCardMessage(view) {
     .setColor(COLOR)
     .setAuthor({
       name: "ZARUBA · WARDOGS",
-      iconURL: "https://i.ibb.co/rRhNwJc1/4.png",
+      iconURL: "https://i.ibb.co/23nkc2ZF/5.png",
     })
     .setTitle(view.name)
     .setURL(`https://steamcommunity.com/profiles/${view.steamId}`)
