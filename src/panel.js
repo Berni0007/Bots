@@ -167,7 +167,7 @@ export function dogCardMessage(view) {
     })
     .setTitle(view.name)
     .setURL(`https://steamcommunity.com/profiles/${view.steamId}`)
-    .setDescription("**ЛИЧНОЕ БОЕВОЕ ДОСЬЕ**")
+    .setDescription("**ЛИЧНОЕ ДЕЛО**")
     .addFields(
       {
         name: "КАРЬЕРА",
