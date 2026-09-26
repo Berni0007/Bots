@@ -29,6 +29,9 @@ import {
   removePanel,
   refreshAllPanels,
   dogCardMessage,
+  seedPanelMessage,
+  seedResultMessage,
+  SEED_JOIN,
   statsCardMessage,
   statsModal,
   statsTextMessage,
@@ -145,6 +148,81 @@ function dataDir() {
   return dirname(config.databasePath);
 }
 
+async function publishSeedPanel(client, store, poller, servers) {
+  const channelId = String(config.seedChannelId || "").trim();
+  if (!channelId) return;
+
+  const channel = await client.channels.fetch(channelId).catch(() => null);
+  if (!channel?.isTextBased() || typeof channel.send !== "function") {
+    console.warn("seed: канал недоступен", channelId);
+    return;
+  }
+
+  const recent = await channel.messages.fetch({ limit: 50 }).catch(() => null);
+  const existing = recent?.find(
+    (message) =>
+      message.author?.id === client.user.id &&
+      message.embeds?.some((embed) => embed.title === "SEED ZARUBA"),
+  );
+
+  const payload = seedPanelMessage(config.seedThreshold);
+  if (existing) {
+    await existing.edit(payload).catch(() => {});
+  } else {
+    await channel.send(payload);
+  }
+
+  poller.onSeedComplete = async (result) => {
+    const target = await client.channels.fetch(channelId).catch(() => null);
+    if (!target?.isTextBased() || typeof target.send !== "function") return;
+    await target.send(seedResultMessage(result));
+  };
+}
+
+async function handleSeedJoin(interaction, store, poller, servers) {
+  const channelId = String(config.seedChannelId || "").trim();
+  if (!channelId || interaction.channelId !== channelId) {
+    await interaction.reply({
+      content: channelId ? `SEED работает только в <#${channelId}>.` : "Канал SEED ещё не настроен.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const server = servers[0];
+  if (!server) {
+    await interaction.reply({ content: "Сервер WARDOGS не настроен.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const state = poller.snapshot(server.id);
+  const online = Math.max(state?.roster?.length || 0, Number(state?.status?.players?.current) || 0);
+  if (online > config.seedThreshold) {
+    await interaction.reply({
+      content: `SEED уже завершён: на сервере ${online} игроков.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const link = store.linkForDiscord(interaction.user.id);
+  if (!link?.steam_id) {
+    await interaction.reply({
+      content: "Сначала привяжи Steam командой /link steamid:ТВОЙ_STEAMID64.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const round = store.ensureSeedRound(server.id, config.seedThreshold, Date.now());
+  store.joinSeed(round.id, interaction.user.id, link.steam_id, Date.now());
+
+  await interaction.reply({
+    content: `Ты записан в текущий SEED. SteamID: ${link.steam_id}.\nНаграда будет засчитана, когда бот увидит этот SteamID на сервере до завершения SEED.`,
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
 export async function startBot({ token, clientId, guildId, store, poller, servers }) {
   const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
@@ -205,6 +283,13 @@ export async function startBot({ token, clientId, guildId, store, poller, server
       const channel = await ready.channels.fetch(row.channel_id).catch(() => null);
       if (channel) await placePanel(channel, store, poller, servers).catch(() => {});
     }
+
+    try {
+      await publishSeedPanel(ready, store, poller, servers);
+    } catch (error) {
+      console.warn("seed panel:", error.message);
+    }
+
     lastPanelAt = 0;
     pushPanels();
   });
@@ -253,6 +338,10 @@ export async function startBot({ token, clientId, guildId, store, poller, server
             value: row.steam_id,
           })),
         );
+        return;
+      }
+      if (interaction.isButton() && interaction.customId === SEED_JOIN) {
+        await handleSeedJoin(interaction, store, poller, servers);
         return;
       }
       if (interaction.isButton() && interaction.customId === PANEL_ASK) {
