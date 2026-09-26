@@ -40,17 +40,13 @@ export function buildCommands() {
         .setAutocomplete(true),
     );
 
-  const unlink = new SlashCommandBuilder()
-    .setName("unlink")
-    .setDescription("Unlink Steam")
-    .setDescriptionLocalization("ru", "Отвязать Steam");
 
   const seedPanel = new SlashCommandBuilder()
     .setName("seed-panel")
     .setDescription("Разместить постоянную панель SEED в этом канале")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
-  return [dog, unlink, seedPanel];
+  return [dog, seedPanel];
 }
 
 async function publishSeedPanel(client, store, poller, servers) {
@@ -360,8 +356,6 @@ export async function startBot({ token, clientId, guildId, store, poller, server
           }).catch(() => {});
         }
         return;
-      } else if (interaction.commandName === "unlink") {
-        await cmdUnlink(interaction, store);
       }
     } catch (error) {
       console.error("command", interaction.commandName || interaction.customId, error);
@@ -575,7 +569,3 @@ async function cmdDog(interaction, store, poller, servers) {
   return true;
 }
 
-async function cmdUnlink(interaction, store) {
-  store.unlinkDiscord(interaction.user.id);
-  await interaction.reply({ content: "Steam отвязан.", flags: MessageFlags.Ephemeral });
-}
