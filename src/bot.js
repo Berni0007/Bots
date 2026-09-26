@@ -167,7 +167,14 @@ async function publishSeedPanel(client, store, poller, servers) {
   const existing = recent?.find(
     (message) =>
       message.author?.id === client.user.id &&
-      message.embeds?.some((embed) => embed.title === "SEED ZARUBA"),
+      (
+        message.embeds?.some((embed) =>
+          ["SEED ZARUBA", "СОБИРАЕМ СТАЮ"].includes(embed.title),
+        ) ||
+        message.components?.some((row) =>
+          row.components?.some((component) => component.customId === SEED_JOIN),
+        )
+      ),
   );
 
   const payload = seedPanelMessage(config.seedThreshold);
@@ -368,11 +375,16 @@ export async function startBot({ token, clientId, guildId, store, poller, server
       if (channel) await placePanel(channel, store, poller, servers).catch(() => {});
     }
 
-    try {
-      await publishSeedPanel(ready, store, poller, servers);
-    } catch (error) {
-      console.warn("seed panel:", error.message);
-    }
+    const ensureSeedPanel = async () => {
+      try {
+        await publishSeedPanel(ready, store, poller, servers);
+      } catch (error) {
+        console.warn("seed panel:", error.message);
+      }
+    };
+
+    await ensureSeedPanel();
+    setInterval(() => void ensureSeedPanel(), 60_000);
 
     lastPanelAt = 0;
     pushPanels();
