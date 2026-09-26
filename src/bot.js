@@ -28,6 +28,7 @@ import {
 } from "./panel.js";
 const usageCd = new Cooldown(60_000);
 const DOG_CHANNEL_ID = "1553370010158759969";
+const OWNED_COMMANDS = new Set(["dog", "seed-panel"]);
 
 export function buildCommands() {
   const dog = new SlashCommandBuilder()
@@ -234,12 +235,6 @@ export async function startBot({ token, clientId, guildId, store, poller, server
       guilds.map((guild) => `${guild.name} (${guild.id})`).join(", ") || "ни одного",
     );
 
-    try {
-      await rest.put(Routes.applicationCommands(appId), { body: [] });
-    } catch (error) {
-      console.warn("discord: не снял глобальные команды:", error.message);
-    }
-
     const targets = [];
     if (allowed.id) targets.push(allowed.id);
     for (const guild of guilds) {
@@ -332,6 +327,7 @@ export async function startBot({ token, clientId, guildId, store, poller, server
         return;
       }
       if (!interaction.isChatInputCommand()) return;
+      if (!OWNED_COMMANDS.has(interaction.commandName)) return;
       if (interaction.commandName === "dog") {
         if (await denyCooldown(interaction)) return;
         if (await cmdDog(interaction, store, poller, servers)) usageCd.hit(interaction.user.id);
