@@ -4,6 +4,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
+  EmbedBuilder,
   MessageFlags,
   ModalBuilder,
   SectionBuilder,
@@ -131,34 +132,66 @@ export function statsCardMessage(view) {
 
 
 export function dogCardMessage(view) {
-  const live = view.live
-    ? `Сейчас в бою · **${view.live.server}** · ${view.live.map || "матч"} · **${view.live.kills}/${view.live.deaths}**`
-    : "Личное боевое досье WARDOGS";
+  const liveText = view.live
+    ? `В БОЮ · ${view.live.server} · ${view.live.map || "матч"} · ${view.live.kills}/${view.live.deaths}`
+    : "НЕ В БОЮ";
 
-  const body = [
-    `# 🐕 WARDOG // ${view.name}`,
-    live,
-    `[Steam профиль](https://steamcommunity.com/profiles/${view.steamId}) · \`${view.steamId}\``,
-    "",
-    `⚔️ **Убийства:** ${view.kills}   ·   ☠️ **Смерти:** ${view.deaths}   ·   🔥 **K/D:** ${view.kd}`,
-    `🎖 **Матчи:** ${view.matches}   ·   🏆 **Победы:** ${view.wins}   ·   📊 **Win Rate:** ${view.winrate}%`,
-    `⏱ **Время на сервере:** ${view.hours}   ·   💰 **Кэш:** ${view.cash}`,
-    `🪖 **Фракция:** ${view.faction}   ·   🗺 **Карта:** ${view.map}`,
-    `🏅 **Ранг:** ${view.rank?.name || "—"}`,
-    view.mates?.length ? `👥 **Часто играет с:** ${view.mates.join(", ")}` : null,
-  ].filter(Boolean).join("\n");
+  const embed = new EmbedBuilder()
+    .setColor(COLOR)
+    .setAuthor({
+      name: "ZARUBA · WARDOGS",
+      iconURL: "https://i.ibb.co/rRhNwJc1/4.png",
+    })
+    .setTitle(view.name)
+    .setURL(`https://steamcommunity.com/profiles/${view.steamId}`)
+    .setDescription(`${liveText}\n\nЛичное боевое досье игрока`)
+    .addFields(
+      {
+        name: "БОЕВАЯ СТАТИСТИКА",
+        value:
+          `**Убийства:** ${view.kills}\n` +
+          `**Смерти:** ${view.deaths}\n` +
+          `**K/D:** ${view.kd}`,
+        inline: true,
+      },
+      {
+        name: "КАРЬЕРА",
+        value:
+          `**Матчи:** ${view.matches}\n` +
+          `**Победы:** ${view.wins}\n` +
+          `**Win Rate:** ${view.winrate}%`,
+        inline: true,
+      },
+      {
+        name: "ПРОФИЛЬ",
+        value:
+          `**Время:** ${view.hours}\n` +
+          `**Ранг:** ${view.rank?.name || "—"}\n` +
+          `**Кэш:** $${view.cash}`,
+        inline: true,
+      },
+      {
+        name: "Фракция",
+        value: String(view.faction || "—"),
+        inline: true,
+      },
+      {
+        name: "Карта",
+        value: String(view.map || "—"),
+        inline: true,
+      },
+      {
+        name: "SteamID64",
+        value: `\`${view.steamId}\``,
+        inline: true,
+      },
+    )
+    .setFooter({ text: "ZARUBA SERVER · WARDOGS STATS" })
+    .setTimestamp();
 
-  const container = new ContainerBuilder().setAccentColor(COLOR);
-  if (view.avatar) {
-    container.addSectionComponents(
-      new SectionBuilder()
-        .addTextDisplayComponents(txt(body))
-        .setThumbnailAccessory(new ThumbnailBuilder().setURL(view.avatar).setDescription(view.name)),
-    );
-  } else {
-    container.addTextDisplayComponents(txt(body));
-  }
-  return { components: [container], files: [], flags: V2 };
+  if (view.avatar) embed.setThumbnail(view.avatar);
+
+  return { embeds: [embed], components: [], files: [] };
 }
 
 export function statsModal() {
