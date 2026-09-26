@@ -149,18 +149,6 @@ export function dogCardMessage(view) {
     `Время       ${view.hours}`,
   ].join("\n");
 
-  const live = view.live
-    ? [
-        `${view.live.server}`,
-        `${view.live.map || "—"}`,
-        "",
-        `Убийства    ${view.liveKills}`,
-        `Смерти      ${view.liveDeaths}`,
-        `K/D         ${view.liveKd}`,
-        `Кэш         $${money(view.liveCash)}`,
-      ].join("\n")
-    : "Игрок сейчас не в бою";
-
   const profile = [
     `Фракция          ${view.faction || "—"}`,
     `Любимая карта    ${view.map || "—"}`,
@@ -184,14 +172,7 @@ export function dogCardMessage(view) {
       {
         name: "КАРЬЕРА",
         value: `\`\`\`text\n${career}\n\`\`\``,
-        inline: true,
-      },
-      {
-        name: "ТЕКУЩИЙ БОЙ",
-        value: view.live
-          ? `\`\`\`text\n${live}\n\`\`\``
-          : `_${live}_`,
-        inline: true,
+        inline: false,
       },
       {
         name: "ПРОФИЛЬ",
