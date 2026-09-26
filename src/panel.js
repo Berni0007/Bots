@@ -139,12 +139,39 @@ export function dogCardMessage(view) {
   const money = (value) =>
     Number(value || 0).toLocaleString("ru-RU").replace(/\u00A0/g, " ");
 
+  const career = [
+    `Убийства   ${view.careerKills}`,
+    `Смерти     ${view.careerDeaths}`,
+    `K/D        ${view.careerKd}`,
+    `Матчи      ${view.matches}`,
+    `Победы     ${view.wins}`,
+    `Win Rate   ${view.winrate}%`,
+    `Время      ${view.hours}`,
+  ].join("\n");
+
+  const live = view.live
+    ? [
+        `${view.live.server} · ${view.live.map || "—"}`,
+        "",
+        `Убийства   ${view.liveKills}`,
+        `Смерти     ${view.liveDeaths}`,
+        `K/D        ${view.liveKd}`,
+        `Кэш        $${money(view.liveCash)}`,
+      ].join("\n")
+    : "Игрок сейчас не в бою";
+
   const combat = [
-    `**Место ZARUBA:** ${view.zarubaRank ? `#${view.zarubaRank}` : "—"}`,
-    `**Headshots:** ${view.headshots ?? "—"}`,
-    `**Техника:** ${view.vehicleKills ?? "—"}`,
-    `**Дальний килл:** ${view.longestM != null ? `${Math.round(Number(view.longestM))} м` : "—"}`,
-    `**Лучший стрик:** ${view.killStreak ?? "—"}`,
+    `Место ZARUBA   ${view.zarubaRank ? `#${view.zarubaRank}` : "—"}`,
+    `Headshots      ${view.headshots ?? "—"}`,
+    `Техника        ${view.vehicleKills ?? "—"}`,
+    `Дальний килл   ${view.longestM != null ? `${Math.round(Number(view.longestM))} м` : "—"}`,
+    `Лучший стрик   ${view.killStreak ?? "—"}`,
+  ].join("\n");
+
+  const preferences = [
+    `Фракция: **${view.faction || "—"}**`,
+    `Карта: **${view.map || "—"}**`,
+    `Рекорд денег: **$${money(view.cashBest)}**`,
   ].join("\n");
 
   const embed = new EmbedBuilder()
@@ -155,50 +182,37 @@ export function dogCardMessage(view) {
     })
     .setTitle(view.name)
     .setURL(`https://steamcommunity.com/profiles/${view.steamId}`)
-    .setDescription("Личное боевое досье")
+    .setDescription("**ЛИЧНОЕ БОЕВОЕ ДОСЬЕ**")
     .addFields(
       {
         name: "КАРЬЕРА",
-        value:
-          `**Убийства:** ${view.careerKills} · **Смерти:** ${view.careerDeaths} · **K/D:** ${view.careerKd}\n` +
-          `**Матчи:** ${view.matches} · **Победы:** ${view.wins} · **Win Rate:** ${view.winrate}%\n` +
-          `**В игре:** ${view.hours}`,
-        inline: false,
+        value: `\`\`\`text\n${career}\n\`\`\``,
+        inline: true,
       },
       {
         name: "ТЕКУЩИЙ БОЙ",
-        value: view.live
-          ? `**${view.live.server}** · ${view.live.map || "—"}\n` +
-            `**Убийства:** ${view.liveKills} · **Смерти:** ${view.liveDeaths} · **K/D:** ${view.liveKd}\n` +
-            `**Кэш:** $${money(view.liveCash)}`
-          : "**Игрок сейчас не в бою**",
-        inline: false,
+        value: view.live ? `\`\`\`text\n${live}\n\`\`\`` : `_${live}_`,
+        inline: true,
       },
       {
         name: "БОЕВЫЕ ПОКАЗАТЕЛИ",
-        value: combat,
+        value: `\`\`\`text\n${combat}\n\`\`\``,
         inline: false,
       },
       {
-        name: "ПРЕДПОЧТЕНИЯ",
-        value:
-          `**Фракция:** ${view.faction || "—"}\n` +
-          `**Любимая карта:** ${view.map || "—"}\n` +
-          `**Рекорд денег за бой:** $${money(view.cashBest)}`,
-        inline: false,
+        name: "ПРОФИЛЬ",
+        value: preferences,
+        inline: true,
       },
       {
         name: "ЧАСТО В ОТРЯДЕ",
-        value: view.mates?.length ? view.mates.join(" · ") : "—",
-        inline: false,
-      },
-      {
-        name: "SteamID64",
-        value: `\`${view.steamId}\``,
-        inline: false,
+        value: view.mates?.length ? view.mates.join("\n") : "—",
+        inline: true,
       },
     )
-    .setFooter({ text: "ZARUBA × WARDOGS · данные Warcon + Live RCON" })
+    .setFooter({
+      text: `SteamID64: ${view.steamId} · ZARUBA × WARDOGS · Warcon + Live RCON`,
+    })
     .setTimestamp();
 
   if (view.avatar) embed.setThumbnail(view.avatar);
