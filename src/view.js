@@ -53,8 +53,12 @@ export function liveRow(poller, servers, steamId) {
 export function buildView(store, poller, servers, player) {
   const extra = store.extras(player.steam_id);
   const live = liveRow(poller, servers, player.steam_id);
-  const kills = (player.kills || 0) + (live?.kills || 0);
-  const deaths = (player.deaths || 0) + (live?.deaths || 0);
+  const careerKills = player.kills || 0;
+  const careerDeaths = player.deaths || 0;
+  const liveKills = live?.kills || 0;
+  const liveDeaths = live?.deaths || 0;
+  const kills = careerKills + liveKills;
+  const deaths = careerDeaths + liveDeaths;
   const wins = player.wins || 0;
   const matches = player.matches || 0;
   const games = matches + (live ? 1 : 0);
@@ -68,6 +72,12 @@ export function buildView(store, poller, servers, player) {
     deaths,
     kd: formatKd(kills, deaths),
     kdRaw: kd(kills, deaths),
+    careerKills,
+    careerDeaths,
+    careerKd: formatKd(careerKills, careerDeaths),
+    liveKills,
+    liveDeaths,
+    liveKd: formatKd(liveKills, liveDeaths),
     hours: formatHours(player.seconds_played),
     steamHours: player.steam_minutes > 0 ? formatHours(player.steam_minutes * 60) : "—",
     matches,
@@ -75,6 +85,8 @@ export function buildView(store, poller, servers, player) {
     wins,
     winrate,
     cash: player.cash_peak_best || 0,
+    cashBest: player.cash_peak_best || 0,
+    liveCash: live?.cash || 0,
     faction: live?.faction || extra.factions[0]?.faction || player.last_faction || "—",
     map: extra.maps[0]?.map || live?.map || "—",
     mates: extra.mates.map((row) => row.name).slice(0, 3),
