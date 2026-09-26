@@ -132,10 +132,6 @@ export function statsCardMessage(view) {
 
 
 export function dogCardMessage(view) {
-  const liveText = view.live
-    ? `В БОЮ · ${view.live.server} · ${view.live.map || "матч"} · ${view.live.kills}/${view.live.deaths}`
-    : "НЕ В БОЮ";
-
   const embed = new EmbedBuilder()
     .setColor(COLOR)
     .setAuthor({
@@ -144,46 +140,45 @@ export function dogCardMessage(view) {
     })
     .setTitle(view.name)
     .setURL(`https://steamcommunity.com/profiles/${view.steamId}`)
-    .setDescription(`${liveText}\n\nЛичное боевое досье игрока`)
+    .setDescription("Личное боевое досье игрока")
     .addFields(
-      {
-        name: "БОЕВАЯ СТАТИСТИКА",
-        value:
-          `**Убийства:** ${view.kills}\n` +
-          `**Смерти:** ${view.deaths}\n` +
-          `**K/D:** ${view.kd}`,
-        inline: true,
-      },
       {
         name: "КАРЬЕРА",
         value:
+          `**Убийства:** ${view.careerKills}\n` +
+          `**Смерти:** ${view.careerDeaths}\n` +
+          `**K/D:** ${view.careerKd}\n` +
           `**Матчи:** ${view.matches}\n` +
           `**Победы:** ${view.wins}\n` +
-          `**Win Rate:** ${view.winrate}%`,
+          `**Win Rate:** ${view.winrate}%\n` +
+          `**Время:** ${view.hours}`,
+        inline: true,
+      },
+      {
+        name: "ТЕКУЩИЙ БОЙ",
+        value: view.live
+          ? `**Сервер:** ${view.live.server}\n` +
+            `**Карта:** ${view.live.map || "—"}\n` +
+            `**Убийства:** ${view.liveKills}\n` +
+            `**Смерти:** ${view.liveDeaths}\n` +
+            `**K/D:** ${view.liveKd}\n` +
+            `**Кэш:** $${view.liveCash}`
+          : "**Игрок сейчас не в бою**",
         inline: true,
       },
       {
         name: "ПРОФИЛЬ",
         value:
-          `**Время:** ${view.hours}\n` +
           `**Ранг:** ${view.rank?.name || "—"}\n` +
-          `**Кэш:** $${view.cash}`,
-        inline: true,
-      },
-      {
-        name: "Фракция",
-        value: String(view.faction || "—"),
-        inline: true,
-      },
-      {
-        name: "Карта",
-        value: String(view.map || "—"),
-        inline: true,
+          `**Фракция:** ${view.faction || "—"}\n` +
+          `**Любимая карта:** ${view.map || "—"}\n` +
+          `**Рекорд денег за бой:** $${view.cashBest}`,
+        inline: false,
       },
       {
         name: "SteamID64",
         value: `\`${view.steamId}\``,
-        inline: true,
+        inline: false,
       },
     )
     .setFooter({ text: "ZARUBA SERVER · WARDOGS STATS" })
