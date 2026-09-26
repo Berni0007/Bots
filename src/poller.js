@@ -92,7 +92,7 @@ export class Poller {
         if (online > Number(activeSeed.threshold || 30)) {
           const participants = this.store.completeSeedRound(activeSeed.id, Date.now());
           const eligible = participants.filter(
-            (row) => Number(row.seconds_on_server || 0) >= 60 * 60,
+            (row) => Number(row.seen_on_server || 0) === 1,
           );
           if (this.onSeedComplete) {
             void Promise.resolve(
