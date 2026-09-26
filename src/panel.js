@@ -172,7 +172,12 @@ export function dogCardMessage(view) {
           `**Ранг:** ${view.rank?.name || "—"}\n` +
           `**Фракция:** ${view.faction || "—"}\n` +
           `**Любимая карта:** ${view.map || "—"}\n` +
-          `**Рекорд денег за бой:** $${view.cashBest}`,
+          `**Рекорд денег за бой:** ${view.cashBest}`,
+        inline: false,
+      },
+      {
+        name: "ЧАСТО ИГРАЕТ С",
+        value: view.mates?.length ? view.mates.join(", ") : "—",
         inline: false,
       },
       {
