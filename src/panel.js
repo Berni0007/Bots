@@ -191,6 +191,7 @@ export function dogCardMessage(view) {
     .setTimestamp();
 
   if (view.avatar) embed.setThumbnail(view.avatar);
+  if (view.bannerUrl) embed.setImage(view.bannerUrl);
 
   return { embeds: [embed], components: [], files: [] };
 }
