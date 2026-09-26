@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS seed_participants (
   steam_id TEXT NOT NULL,
   joined_at INTEGER NOT NULL,
   seen_on_server INTEGER NOT NULL DEFAULT 0,
+  seconds_on_server INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (round_id, steam_id)
 );
 
@@ -139,6 +140,7 @@ export function openDb(path) {
   db.pragma("foreign_keys = ON");
   db.exec(SCHEMA);
   ensureColumn(db, "match_stats", "cash_earned", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "seed_participants", "seconds_on_server", "INTEGER NOT NULL DEFAULT 0");
   backfillServerStats(db);
   return new StatsStore(db);
 }
@@ -303,6 +305,12 @@ export class StatsStore {
     this._markSeedSeen = db.prepare(`
       UPDATE seed_participants
       SET seen_on_server = 1
+      WHERE round_id = @roundId AND steam_id = @steamId
+    `);
+    this._addSeedSeconds = db.prepare(`
+      UPDATE seed_participants
+      SET seen_on_server = 1,
+          seconds_on_server = seconds_on_server + @seconds
       WHERE round_id = @roundId AND steam_id = @steamId
     `);
     this._finishSeedRound = db.prepare(`
@@ -568,6 +576,14 @@ export class StatsStore {
   markSeedSeen(roundId, steamIds) {
     for (const steamId of steamIds || []) {
       this._markSeedSeen.run({ roundId, steamId });
+    }
+  }
+
+  addSeedSeconds(roundId, steamIds, seconds) {
+    const amount = Math.max(0, Number(seconds) || 0);
+    if (!amount) return;
+    for (const steamId of steamIds || []) {
+      this._addSeedSeconds.run({ roundId, steamId, seconds: amount });
     }
   }
 
