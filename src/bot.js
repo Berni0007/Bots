@@ -568,6 +568,7 @@ async function cmdDog(interaction, store, poller, servers) {
   }
 
   const view = buildView(store, poller, servers, player);
+  view.bannerUrl = config.dogBannerUrl || "";
   if (!view.avatar) {
     try {
       const profile = await fetchCommunityProfile(player.steam_id);
