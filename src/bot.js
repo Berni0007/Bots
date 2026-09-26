@@ -11,7 +11,7 @@ import {
 } from "discord.js";
 import { dirname } from "node:path";
 import { config } from "./config.js";
-import { fetchCommunityProfile } from "./steam.js";
+import { fetchCommunityProfile, resolveSteamInput } from "./steam.js";
 import { Cooldown } from "./cooldown.js";
 import { isSteamId64 } from "./logic.js";
 import { resolveSteamId } from "./lookup.js";
@@ -32,6 +32,11 @@ import {
   seedPanelMessage,
   seedResultMessage,
   SEED_JOIN,
+  SEED_USE_SAVED,
+  SEED_OTHER,
+  SEED_MODAL,
+  seedSavedSteamMessage,
+  seedSteamModal,
   statsCardMessage,
   statsModal,
   statsTextMessage,
@@ -179,6 +184,64 @@ async function publishSeedPanel(client, store, poller, servers) {
   };
 }
 
+
+function seedServerState(poller, servers) {
+  const server = servers[0];
+  if (!server) return { server: null, online: 0 };
+  const state = poller.snapshot(server.id);
+  const online = Math.max(
+    state?.roster?.length || 0,
+    Number(state?.status?.players?.current) || 0,
+  );
+  return { server, online };
+}
+
+async function enrollSeed(interaction, store, poller, servers, steamId) {
+  const channelId = String(config.seedChannelId || "").trim();
+  const { server, online } = seedServerState(poller, servers);
+
+  if (!channelId || interaction.channelId !== channelId) {
+    const payload = {
+      content: channelId ? `SEED работает только в <#${channelId}>.` : "Канал SEED ещё не настроен.",
+      flags: MessageFlags.Ephemeral,
+    };
+    if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
+    else await interaction.reply(payload);
+    return false;
+  }
+
+  if (!server) {
+    const payload = { content: "Сервер WARDOGS не настроен.", flags: MessageFlags.Ephemeral };
+    if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
+    else await interaction.reply(payload);
+    return false;
+  }
+
+  if (online > config.seedThreshold) {
+    const payload = {
+      content: `SEED уже завершён: на сервере ${online} игроков.`,
+      flags: MessageFlags.Ephemeral,
+    };
+    if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
+    else await interaction.reply(payload);
+    return false;
+  }
+
+  store.link(interaction.user.id, steamId, Date.now());
+  const round = store.ensureSeedRound(server.id, config.seedThreshold, Date.now());
+  store.joinSeed(round.id, interaction.user.id, steamId, Date.now());
+
+  const payload = {
+    content:
+      `Ты записан в текущий SEED. SteamID: \`${steamId}\`.\n` +
+      "Награда будет засчитана, когда бот увидит этот SteamID на сервере до завершения SEED.",
+    flags: MessageFlags.Ephemeral,
+  };
+  if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
+  else await interaction.reply(payload);
+  return true;
+}
+
 async function handleSeedJoin(interaction, store, poller, servers) {
   const channelId = String(config.seedChannelId || "").trim();
   if (!channelId || interaction.channelId !== channelId) {
@@ -189,14 +252,7 @@ async function handleSeedJoin(interaction, store, poller, servers) {
     return;
   }
 
-  const server = servers[0];
-  if (!server) {
-    await interaction.reply({ content: "Сервер WARDOGS не настроен.", flags: MessageFlags.Ephemeral });
-    return;
-  }
-
-  const state = poller.snapshot(server.id);
-  const online = Math.max(state?.roster?.length || 0, Number(state?.status?.players?.current) || 0);
+  const { online } = seedServerState(poller, servers);
   if (online > config.seedThreshold) {
     await interaction.reply({
       content: `SEED уже завершён: на сервере ${online} игроков.`,
@@ -206,21 +262,49 @@ async function handleSeedJoin(interaction, store, poller, servers) {
   }
 
   const link = store.linkForDiscord(interaction.user.id);
+  if (link?.steam_id) {
+    await interaction.reply(seedSavedSteamMessage(link.steam_id));
+    return;
+  }
+
+  await interaction.showModal(seedSteamModal());
+}
+
+async function handleSeedUseSaved(interaction, store, poller, servers) {
+  const link = store.linkForDiscord(interaction.user.id);
   if (!link?.steam_id) {
     await interaction.reply({
-      content: "Сначала привяжи Steam командой /link steamid:ТВОЙ_STEAMID64.",
+      content: "Сохранённый SteamID не найден. Нажми «Указать другой».",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  await enrollSeed(interaction, store, poller, servers, link.steam_id);
+}
+
+async function handleSeedOther(interaction) {
+  await interaction.showModal(seedSteamModal());
+}
+
+async function handleSeedModal(interaction, store, poller, servers) {
+  const raw = interaction.fields.getTextInputValue("steam");
+  let steamId = null;
+  try {
+    steamId = await resolveSteamInput(config.steamApiKey, raw);
+  } catch (error) {
+    console.warn("seed steam resolve:", error.message);
+  }
+
+  if (!steamId) {
+    await interaction.reply({
+      content:
+        "Не удалось определить SteamID64. Вставь SteamID64 или ссылку вида steamcommunity.com/profiles/... / steamcommunity.com/id/....",
       flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
-  const round = store.ensureSeedRound(server.id, config.seedThreshold, Date.now());
-  store.joinSeed(round.id, interaction.user.id, link.steam_id, Date.now());
-
-  await interaction.reply({
-    content: `Ты записан в текущий SEED. SteamID: ${link.steam_id}.\nНаграда будет засчитана, когда бот увидит этот SteamID на сервере до завершения SEED.`,
-    flags: MessageFlags.Ephemeral,
-  });
+  await enrollSeed(interaction, store, poller, servers, steamId);
 }
 
 export async function startBot({ token, clientId, guildId, store, poller, servers }) {
@@ -344,6 +428,14 @@ export async function startBot({ token, clientId, guildId, store, poller, server
         await handleSeedJoin(interaction, store, poller, servers);
         return;
       }
+      if (interaction.isButton() && interaction.customId === SEED_USE_SAVED) {
+        await handleSeedUseSaved(interaction, store, poller, servers);
+        return;
+      }
+      if (interaction.isButton() && interaction.customId === SEED_OTHER) {
+        await handleSeedOther(interaction);
+        return;
+      }
       if (interaction.isButton() && interaction.customId === PANEL_ASK) {
         await interaction.showModal(statsModal());
         return;
@@ -364,6 +456,10 @@ export async function startBot({ token, clientId, guildId, store, poller, server
         if (await denyCooldown(interaction)) return;
         if (await cmdLive(interaction, poller, servers)) usageCd.hit(interaction.user.id);
         await bumpPanel(interaction.channel, store, poller, servers);
+        return;
+      }
+      if (interaction.isModalSubmit() && interaction.customId === SEED_MODAL) {
+        await handleSeedModal(interaction, store, poller, servers);
         return;
       }
       if (interaction.isModalSubmit() && interaction.customId === PANEL_MODAL) {
