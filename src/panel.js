@@ -207,17 +207,19 @@ export function seedPanelMessage(threshold = 30) {
       name: "ZARUBA · WARDOGS",
       iconURL: "https://i.ibb.co/rRhNwJc1/4.png",
     })
-    .setTitle("SEED ZARUBA")
+    .setTitle("СОБИРАЕМ СТАЮ")
     .setDescription(
       [
-        "Помогаешь поднять сервер — зарегистрируй участие.",
+        "Нажми кнопку ниже и зарегистрируйся в текущем SEED.",
         "",
-        "Нажми кнопку **Участвую в SEED**.",
-        "Укажи SteamID64 или ссылку на Steam-профиль.",
-        `SEED завершается, когда онлайн становится **больше ${threshold}** игроков.`,
+        `**Успешный SEED:** сервер набрал больше ${threshold} игроков.`,
+        "**Награда:** VIP на 1 день на все серверы ZARUBA — Squad и WARDOGS.",
+        "**3 успешно завершённых SEED за 3 дня:** Супер VIP на 1 день.",
+        "",
+        "Награда выдаётся только тем, чей SteamID бот реально увидел на сервере до завершения SEED.",
       ].join("\n"),
     )
-    .setFooter({ text: "ZARUBA SERVER · SEED" });
+    .setFooter({ text: "ZARUBA SERVER · WARDOGS SEED" });
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -228,7 +230,6 @@ export function seedPanelMessage(threshold = 30) {
 
   return { embeds: [embed], components: [row], files: [] };
 }
-
 
 export function seedSavedSteamMessage(steamId) {
   const row = new ActionRowBuilder().addComponents(
