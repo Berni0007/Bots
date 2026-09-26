@@ -20,6 +20,7 @@ export class Poller {
     this.onTick = null;
     this.onOutputTick = null;
     this.onMatchEnd = null;
+    this.onSeedComplete = null;
     this.lastBoardAt = 0;
   }
 
@@ -72,6 +73,37 @@ export class Poller {
         pollMs: this.pollMs,
       });
       const matchEnded = this.persist(server, state, events);
+
+      const activeSeed = this.store.activeSeedRound(server.id);
+      if (activeSeed) {
+        const rosterIds = (state.roster || []).map((player) => player.steamId).filter(Boolean);
+        this.store.markSeedSeen(activeSeed.id, rosterIds);
+
+        const online = Math.max(
+          state.roster?.length || 0,
+          Number(status?.players?.current) || 0,
+        );
+
+        if (online > Number(activeSeed.threshold || 30)) {
+          const participants = this.store.completeSeedRound(activeSeed.id, Date.now());
+          const eligible = participants.filter((row) => Number(row.seen_on_server) === 1);
+          if (this.onSeedComplete) {
+            void Promise.resolve(
+              this.onSeedComplete({
+                server,
+                threshold: Number(activeSeed.threshold || 30),
+                online,
+                participants,
+                eligible,
+                endedAt: Date.now(),
+              }),
+            ).catch((error) => {
+              console.warn("seed complete:", error instanceof Error ? error.message : error);
+            });
+          }
+        }
+      }
+
       this.live.set(server.id, { online: true, name: status.serverName || server.name });
       return matchEnded;
     } catch (error) {
