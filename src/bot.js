@@ -513,13 +513,42 @@ export async function startBot({ token, clientId, guildId, store, poller, server
           });
           return;
         }
+
+        const channel = interaction.channel;
+        const me = interaction.guild?.members?.me;
+        const perms = channel && me ? channel.permissionsFor(me) : null;
+        const required = [
+          ["ViewChannel", PermissionFlagsBits.ViewChannel],
+          ["SendMessages", PermissionFlagsBits.SendMessages],
+          ["EmbedLinks", PermissionFlagsBits.EmbedLinks],
+          ["ReadMessageHistory", PermissionFlagsBits.ReadMessageHistory],
+        ];
+        const missing = perms
+          ? required.filter(([, bit]) => !perms.has(bit)).map(([name]) => name)
+          : ["permissions unavailable"];
+
+        if (missing.length) {
+          await interaction.reply({
+            content:
+              "Discord считает, что у бота нет прав: **" +
+              missing.join(", ") +
+              "**\nПроверь категорию канала, @everyone deny и персональные overrides для бота.",
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         try {
           const sent = await interaction.channel.send(seedPanelMessage(config.seedThreshold));
           await interaction.editReply({ content: `SEED-панель создана: ${sent.id}` });
         } catch (error) {
           console.error("seed-panel command:", error);
-          await interaction.editReply({ content: `Не смог отправить панель: ${error.message}` });
+          const code = error?.code ? ` code=${error.code}` : "";
+          const status = error?.status ? ` status=${error.status}` : "";
+          await interaction.editReply({
+            content: `Не смог отправить панель: ${error.message}${code}${status}`,
+          });
         }
         return;
       }
