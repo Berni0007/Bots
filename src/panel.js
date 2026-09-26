@@ -27,6 +27,9 @@ export const PANEL_TOP = "wd:top";
 export const PANEL_LIVE = "wd:live";
 export const PANEL_MODAL = "wd:stats";
 export const SEED_JOIN = "seed:join";
+export const SEED_USE_SAVED = "seed:use-saved";
+export const SEED_OTHER = "seed:other";
+export const SEED_MODAL = "seed:modal";
 
 const METRIC_LABEL = {
   kills: "Килы",
@@ -224,6 +227,43 @@ export function seedPanelMessage(threshold = 30) {
   );
 
   return { embeds: [embed], components: [row], files: [] };
+}
+
+
+export function seedSavedSteamMessage(steamId) {
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(SEED_USE_SAVED)
+      .setStyle(ButtonStyle.Success)
+      .setLabel("Да, использовать"),
+    new ButtonBuilder()
+      .setCustomId(SEED_OTHER)
+      .setStyle(ButtonStyle.Secondary)
+      .setLabel("Указать другой"),
+  );
+
+  return {
+    content: `Найден сохранённый SteamID: \`${steamId}\`\nИспользовать его?`,
+    components: [row],
+    flags: MessageFlags.Ephemeral,
+  };
+}
+
+export function seedSteamModal() {
+  return new ModalBuilder()
+    .setCustomId(SEED_MODAL)
+    .setTitle("Участие в SEED")
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("steam")
+          .setLabel("SteamID64 или ссылка на Steam")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setPlaceholder("7656119... или steamcommunity.com/...")
+          .setMaxLength(200),
+      ),
+    );
 }
 
 export function seedResultMessage({ server, threshold, online, eligible = [] }) {
