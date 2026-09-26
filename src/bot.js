@@ -77,9 +77,6 @@ export function buildCommands(servers) {
         .setName("ник")
         .setDescription("Ник или SteamID64")
         .setAutocomplete(true),
-    )
-    .addUserOption((option) =>
-      option.setName("игрок").setDescription("Участник Discord"),
     );
 
   const top = new SlashCommandBuilder()
