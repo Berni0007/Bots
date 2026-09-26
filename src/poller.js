@@ -78,6 +78,11 @@ export class Poller {
       if (activeSeed) {
         const rosterIds = (state.roster || []).map((player) => player.steamId).filter(Boolean);
         this.store.markSeedSeen(activeSeed.id, rosterIds);
+        this.store.addSeedSeconds(
+          activeSeed.id,
+          rosterIds,
+          Math.max(1, Math.round(this.pollMs / 1000)),
+        );
 
         const online = Math.max(
           state.roster?.length || 0,
@@ -86,7 +91,9 @@ export class Poller {
 
         if (online > Number(activeSeed.threshold || 30)) {
           const participants = this.store.completeSeedRound(activeSeed.id, Date.now());
-          const eligible = participants.filter((row) => Number(row.seen_on_server) === 1);
+          const eligible = participants.filter(
+            (row) => Number(row.seconds_on_server || 0) >= 60 * 60,
+          );
           if (this.onSeedComplete) {
             void Promise.resolve(
               this.onSeedComplete({
