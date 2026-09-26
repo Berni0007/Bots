@@ -16,6 +16,7 @@ import { Cooldown } from "./cooldown.js";
 import { isSteamId64 } from "./logic.js";
 import { resolveSteamId } from "./lookup.js";
 import { buildView } from "./view.js";
+import { fetchWarconCareer } from "./warcon.js";
 import {
   PANEL_ASK,
   PANEL_LIVE,
@@ -708,6 +709,36 @@ async function cmdDog(interaction, store, poller, servers) {
 
   const view = buildView(store, poller, servers, player);
   view.bannerUrl = config.dogBannerUrl || "";
+
+  if (config.warconApiKey) {
+    try {
+      const warcon = await fetchWarconCareer(player.steam_id);
+      const career = warcon?.career;
+      if (career) {
+        view.warcon = true;
+        view.careerKills = Number(career.kills) || 0;
+        view.careerDeaths = Number(career.deaths) || 0;
+        view.careerKd = view.careerDeaths > 0
+          ? (view.careerKills / view.careerDeaths).toFixed(2)
+          : view.careerKills > 0 ? String(view.careerKills) : "0.00";
+        view.matches = Number(career.matches) || 0;
+        view.wins = Number(career.wins) || 0;
+        view.winrate = view.matches > 0 ? Math.round((view.wins / view.matches) * 100) : 0;
+        view.hours = `${Math.floor((Number(career.minutes) || 0) / 60)} ч ${Math.round((Number(career.minutes) || 0) % 60)} мин`;
+        view.headshots = Number(career.headshots) || 0;
+        view.vehicleKills = Number(career.vehicleKills) || 0;
+        view.longestM = career.longestM == null ? null : Number(career.longestM);
+        view.killStreak = Number(career.killStreak) || 0;
+        view.zarubaRank = career.rank?.org ?? career.rank?.server ?? null;
+      }
+      if (!view.avatar && warcon?.dossier?.steam?.avatar) {
+        view.avatar = warcon.dossier.steam.avatar;
+      }
+    } catch (error) {
+      console.warn("warcon /dog:", error.message);
+    }
+  }
+
   if (!view.avatar) {
     try {
       const profile = await fetchCommunityProfile(player.steam_id);
