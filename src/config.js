@@ -45,6 +45,8 @@ export const config = {
   discordGuildId: env("DISCORD_GUILD_ID"),
   liveChannelId: env("LIVE_CHANNEL_ID"),
   matchResultsChannelId: env("MATCH_RESULTS_CHANNEL_ID"),
+  seedChannelId: env("SEED_CHANNEL_ID"),
+  seedThreshold: Math.max(1, Number(env("SEED_THRESHOLD", "30")) || 30),
   steamApiKey: env("STEAM_API_KEY"),
   appId: env("WARDOGS_APP_ID", "1867240"),
   databasePath: resolve(root, env("DATABASE_PATH", defaultDatabasePath)),
