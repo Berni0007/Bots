@@ -146,7 +146,12 @@ export function buildCommands(servers) {
     .addSubcommand((sub) => sub.setName("убрать").setDescription("Снять панель с этого канала"))
     .addSubcommand((sub) => sub.setName("убрать-все").setDescription("Снять все панели на сервере"));
 
-  return [stats, dog, top, live, link, unlink, panel];
+  const seedPanel = new SlashCommandBuilder()
+    .setName("seed-panel")
+    .setDescription("Разместить постоянную панель SEED в этом канале")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
+
+  return [stats, dog, top, live, link, unlink, panel, seedPanel];
 }
 
 function dataDir() {
@@ -157,7 +162,11 @@ async function publishSeedPanel(client, store, poller, servers) {
   const channelId = String(config.seedChannelId || "").trim();
   if (!channelId) return;
 
-  const channel = await client.channels.fetch(channelId).catch(() => null);
+  console.log("seed: target channel", channelId);
+  const channel = await client.channels.fetch(channelId).catch((error) => {
+    console.warn("seed: fetch channel failed:", error.message);
+    return null;
+  });
   if (!channel?.isTextBased() || typeof channel.send !== "function") {
     console.warn("seed: канал недоступен", channelId);
     return;
@@ -495,6 +504,24 @@ export async function startBot({ token, clientId, guildId, store, poller, server
       } else if (interaction.commandName === "live") {
         if (await denyCooldown(interaction)) return;
         if (await cmdLive(interaction, poller, servers)) usageCd.hit(interaction.user.id);
+      }
+      else if (interaction.commandName === "seed-panel") {
+        if (interaction.channelId !== String(config.seedChannelId || "").trim()) {
+          await interaction.reply({
+            content: `Эту панель ставим только в <#${config.seedChannelId}>.`,
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        try {
+          const sent = await interaction.channel.send(seedPanelMessage(config.seedThreshold));
+          await interaction.editReply({ content: `SEED-панель создана: ${sent.id}` });
+        } catch (error) {
+          console.error("seed-panel command:", error);
+          await interaction.editReply({ content: `Не смог отправить панель: ${error.message}` });
+        }
+        return;
       }
       else if (interaction.commandName === "link") await cmdLink(interaction, store);
       else if (interaction.commandName === "unlink") await cmdUnlink(interaction, store);
