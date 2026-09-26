@@ -129,6 +129,38 @@ export function statsCardMessage(view) {
   return { components: [container], files: [], flags: V2 };
 }
 
+
+export function dogCardMessage(view) {
+  const live = view.live
+    ? `Сейчас в бою · **${view.live.server}** · ${view.live.map || "матч"} · **${view.live.kills}/${view.live.deaths}**`
+    : "Личное боевое досье WARDOGS";
+
+  const body = [
+    `# 🐕 WARDOG // ${view.name}`,
+    live,
+    `[Steam профиль](https://steamcommunity.com/profiles/${view.steamId}) · \`${view.steamId}\``,
+    "",
+    `⚔️ **Убийства:** ${view.kills}   ·   ☠️ **Смерти:** ${view.deaths}   ·   🔥 **K/D:** ${view.kd}`,
+    `🎖 **Матчи:** ${view.matches}   ·   🏆 **Победы:** ${view.wins}   ·   📊 **Win Rate:** ${view.winrate}%`,
+    `⏱ **Время на сервере:** ${view.hours}   ·   💰 **Кэш:** ${view.cash}`,
+    `🪖 **Фракция:** ${view.faction}   ·   🗺 **Карта:** ${view.map}`,
+    `🏅 **Ранг:** ${view.rank?.name || "—"}`,
+    view.mates?.length ? `👥 **Часто играет с:** ${view.mates.join(", ")}` : null,
+  ].filter(Boolean).join("\n");
+
+  const container = new ContainerBuilder().setAccentColor(COLOR);
+  if (view.avatar) {
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(txt(body))
+        .setThumbnailAccessory(new ThumbnailBuilder().setURL(view.avatar).setDescription(view.name)),
+    );
+  } else {
+    container.addTextDisplayComponents(txt(body));
+  }
+  return { components: [container], files: [], flags: V2 };
+}
+
 export function statsModal() {
   return new ModalBuilder()
     .setCustomId(PANEL_MODAL)
