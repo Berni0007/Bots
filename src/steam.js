@@ -3,11 +3,36 @@ import { isSteamId64 } from "./logic.js";
 const SUMMARIES = "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/";
 const BANS = "https://api.steampowered.com/ISteamUser/GetPlayerBans/v1/";
 const OWNED = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/";
+const RESOLVE_VANITY = "https://api.steampowered.com/ISteamUser/ResolveVanityURL/v1/";
 
 function chunk(items, size) {
   const out = [];
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
   return out;
+}
+
+
+export async function resolveSteamInput(apiKey, input) {
+  const raw = String(input || "").trim();
+  if (!raw) return null;
+
+  if (isSteamId64(raw)) return raw;
+
+  const profileMatch = raw.match(/steamcommunity\.com\/profiles\/(7656119\d{10})/i);
+  if (profileMatch?.[1] && isSteamId64(profileMatch[1])) return profileMatch[1];
+
+  const vanityMatch = raw.match(/steamcommunity\.com\/id\/([^/?#]+)/i);
+  if (!vanityMatch?.[1] || !apiKey) return null;
+
+  const url = new URL(RESOLVE_VANITY);
+  url.searchParams.set("key", apiKey);
+  url.searchParams.set("vanityurl", vanityMatch[1]);
+
+  const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!response.ok) throw new Error(`Steam vanity ${response.status}`);
+  const data = await response.json();
+  const steamId = String(data?.response?.steamid || "");
+  return isSteamId64(steamId) ? steamId : null;
 }
 
 export async function fetchSummaries(apiKey, steamIds) {
