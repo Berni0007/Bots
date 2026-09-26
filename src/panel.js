@@ -215,7 +215,6 @@ export function seedPanelMessage(threshold = 30) {
         "Нажми кнопку **Участвую в SEED**.",
         "Укажи SteamID64 или ссылку на Steam-профиль.",
         `SEED завершается, когда онлайн становится **больше ${threshold}** игроков.`,
-        "**Для получения награды нужно провести на сервере суммарно не менее 60 минут во время текущего SEED.**",
       ].join("\n"),
     )
     .setFooter({ text: "ZARUBA SERVER · SEED" });
@@ -292,8 +291,6 @@ export function seedResultMessage({ server, threshold, online, eligible = [] }) 
         "",
         "**Получают вознаграждение:**",
         list,
-        "",
-        "-# Условие: не менее 60 минут суммарного времени на сервере во время SEED.",
       ].join("\n"),
     )
     .setFooter({ text: "ZARUBA SERVER · SEED REWARD" })
