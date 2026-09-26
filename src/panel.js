@@ -136,6 +136,17 @@ export function statsCardMessage(view) {
 
 
 export function dogCardMessage(view) {
+  const money = (value) =>
+    Number(value || 0).toLocaleString("ru-RU").replace(/\u00A0/g, " ");
+
+  const combat = [
+    `**Место ZARUBA:** ${view.zarubaRank ? `#${view.zarubaRank}` : "—"}`,
+    `**Headshots:** ${view.headshots ?? "—"}`,
+    `**Техника:** ${view.vehicleKills ?? "—"}`,
+    `**Дальний килл:** ${view.longestM != null ? `${Math.round(Number(view.longestM))} м` : "—"}`,
+    `**Лучший стрик:** ${view.killStreak ?? "—"}`,
+  ].join("\n");
+
   const embed = new EmbedBuilder()
     .setColor(COLOR)
     .setAuthor({
@@ -144,44 +155,41 @@ export function dogCardMessage(view) {
     })
     .setTitle(view.name)
     .setURL(`https://steamcommunity.com/profiles/${view.steamId}`)
-    .setDescription("Личное боевое досье игрока")
+    .setDescription("Личное боевое досье")
     .addFields(
       {
         name: "КАРЬЕРА",
         value:
-          `**Убийства:** ${view.careerKills}\n` +
-          `**Смерти:** ${view.careerDeaths}\n` +
-          `**K/D:** ${view.careerKd}\n` +
-          `**Матчи:** ${view.matches}\n` +
-          `**Победы:** ${view.wins}\n` +
-          `**Win Rate:** ${view.winrate}%\n` +
-          `**Время:** ${view.hours}`,
-        inline: true,
+          `**Убийства:** ${view.careerKills} · **Смерти:** ${view.careerDeaths} · **K/D:** ${view.careerKd}\n` +
+          `**Матчи:** ${view.matches} · **Победы:** ${view.wins} · **Win Rate:** ${view.winrate}%\n` +
+          `**В игре:** ${view.hours}`,
+        inline: false,
       },
       {
         name: "ТЕКУЩИЙ БОЙ",
         value: view.live
-          ? `**Сервер:** ${view.live.server}\n` +
-            `**Карта:** ${view.live.map || "—"}\n` +
-            `**Убийства:** ${view.liveKills}\n` +
-            `**Смерти:** ${view.liveDeaths}\n` +
-            `**K/D:** ${view.liveKd}\n` +
-            `**Кэш:** $${view.liveCash}`
+          ? `**${view.live.server}** · ${view.live.map || "—"}\n` +
+            `**Убийства:** ${view.liveKills} · **Смерти:** ${view.liveDeaths} · **K/D:** ${view.liveKd}\n` +
+            `**Кэш:** $${money(view.liveCash)}`
           : "**Игрок сейчас не в бою**",
-        inline: true,
-      },
-      {
-        name: "ПРОФИЛЬ",
-        value:
-          `**Ранг:** ${view.rank?.name || "—"}\n` +
-          `**Фракция:** ${view.faction || "—"}\n` +
-          `**Любимая карта:** ${view.map || "—"}\n` +
-          `**Рекорд денег за бой:** ${view.cashBest}`,
         inline: false,
       },
       {
-        name: "ЧАСТО ИГРАЕТ С",
-        value: view.mates?.length ? view.mates.join(", ") : "—",
+        name: "БОЕВЫЕ ПОКАЗАТЕЛИ",
+        value: combat,
+        inline: false,
+      },
+      {
+        name: "ПРЕДПОЧТЕНИЯ",
+        value:
+          `**Фракция:** ${view.faction || "—"}\n` +
+          `**Любимая карта:** ${view.map || "—"}\n` +
+          `**Рекорд денег за бой:** $${money(view.cashBest)}`,
+        inline: false,
+      },
+      {
+        name: "ЧАСТО В ОТРЯДЕ",
+        value: view.mates?.length ? view.mates.join(" · ") : "—",
         inline: false,
       },
       {
@@ -190,7 +198,7 @@ export function dogCardMessage(view) {
         inline: false,
       },
     )
-    .setFooter({ text: "ZARUBA SERVER · WARDOGS STATS" })
+    .setFooter({ text: "ZARUBA × WARDOGS · данные Warcon + Live RCON" })
     .setTimestamp();
 
   if (view.avatar) embed.setThumbnail(view.avatar);
@@ -198,7 +206,6 @@ export function dogCardMessage(view) {
 
   return { embeds: [embed], components: [], files: [] };
 }
-
 
 export function seedPanelMessage(threshold = 30) {
   const embed = new EmbedBuilder()
