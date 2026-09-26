@@ -26,6 +26,7 @@ export const PANEL_ME = "wd:me";
 export const PANEL_TOP = "wd:top";
 export const PANEL_LIVE = "wd:live";
 export const PANEL_MODAL = "wd:stats";
+export const SEED_JOIN = "seed:join";
 
 const METRIC_LABEL = {
   kills: "Килы",
@@ -190,6 +191,69 @@ export function dogCardMessage(view) {
     .setTimestamp();
 
   if (view.avatar) embed.setThumbnail(view.avatar);
+
+  return { embeds: [embed], components: [], files: [] };
+}
+
+
+export function seedPanelMessage(threshold = 30) {
+  const embed = new EmbedBuilder()
+    .setColor(COLOR)
+    .setAuthor({
+      name: "ZARUBA · WARDOGS",
+      iconURL: "https://i.ibb.co/rRhNwJc1/4.png",
+    })
+    .setTitle("SEED ZARUBA")
+    .setDescription(
+      [
+        "Помогаешь поднять сервер — зарегистрируй участие.",
+        "",
+        "Нажми кнопку **Участвую в SEED**.",
+        "Для участия Steam должен быть привязан командой **/link**.",
+        `Награда фиксируется, если твой SteamID реально был на сервере до достижения онлайна **больше ${threshold}** игроков.`,
+      ].join("\n"),
+    )
+    .setFooter({ text: "ZARUBA SERVER · SEED" });
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(SEED_JOIN)
+      .setStyle(ButtonStyle.Success)
+      .setLabel("Участвую в SEED"),
+  );
+
+  return { embeds: [embed], components: [row], files: [] };
+}
+
+export function seedResultMessage({ server, threshold, online, eligible = [] }) {
+  const list = eligible.length
+    ? eligible
+        .map(
+          (row, index) =>
+            `${index + 1}. **${row.name || row.steam_id}** · [Steam](https://steamcommunity.com/profiles/${row.steam_id}) · \`${row.steam_id}\``,
+        )
+        .join("\n")
+    : "Нет подтверждённых участников.";
+
+  const embed = new EmbedBuilder()
+    .setColor(COLOR)
+    .setAuthor({
+      name: "ZARUBA · WARDOGS",
+      iconURL: "https://i.ibb.co/rRhNwJc1/4.png",
+    })
+    .setTitle("SEED ЗАВЕРШЁН")
+    .setDescription(
+      [
+        `**Сервер:** ${server?.name || "ZARUBA"}`,
+        `**Онлайн:** ${online}`,
+        `**Порог:** больше ${threshold}`,
+        "",
+        "**Получают вознаграждение:**",
+        list,
+      ].join("\n"),
+    )
+    .setFooter({ text: "ZARUBA SERVER · SEED REWARD" })
+    .setTimestamp();
 
   return { embeds: [embed], components: [], files: [] };
 }
