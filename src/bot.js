@@ -19,6 +19,7 @@ import {
   dogCardMessage,
   seedPanelMessage,
   seedResultMessage,
+  seedTestMessage,
   SEED_JOIN,
   SEED_USE_SAVED,
   SEED_OTHER,
@@ -28,7 +29,7 @@ import {
 } from "./panel.js";
 const usageCd = new Cooldown(60_000);
 const DOG_CHANNEL_ID = "1553370010158759969";
-const OWNED_COMMANDS = new Set(["dog", "seed-panel"]);
+const OWNED_COMMANDS = new Set(["dog", "seed-panel", "seed-test"]);
 
 export function buildCommands() {
   const dog = new SlashCommandBuilder()
@@ -47,7 +48,12 @@ export function buildCommands() {
     .setDescription("Разместить постоянную панель SEED в этом канале")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
-  return [dog, seedPanel];
+  const seedTest = new SlashCommandBuilder()
+    .setName("seed-test")
+    .setDescription("Проверить текущих участников SEED без завершения")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
+
+  return [dog, seedPanel, seedTest];
 }
 
 async function publishSeedPanel(client, store, poller, servers) {
@@ -331,6 +337,49 @@ export async function startBot({ token, clientId, guildId, store, poller, server
       if (interaction.commandName === "dog") {
         if (await denyCooldown(interaction)) return;
         if (await cmdDog(interaction, store, poller, servers)) usageCd.hit(interaction.user.id);
+      } else if (interaction.commandName === "seed-test") {
+        const channelId = String(config.seedChannelId || "").trim();
+        if (interaction.channelId !== channelId) {
+          await interaction.reply({
+            content: `SEED-тест работает только в <#${channelId}>.`,
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        const { server, online } = seedServerState(poller, servers);
+        if (!server) {
+          await interaction.reply({
+            content: "Сервер WARDOGS не настроен.",
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        const round = store.activeSeedRound(server.id);
+        if (!round) {
+          await interaction.reply({
+            content: "Сейчас нет активного SEED. Сначала хотя бы один игрок должен нажать «Участвую в SEED».",
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        const state = poller.snapshot(server.id);
+        const rosterIds = (state?.roster || []).map((player) => player.steamId).filter(Boolean);
+        store.markSeedSeen(round.id, rosterIds);
+
+        const participants = store.seedParticipants(round.id);
+        const eligible = participants.filter((row) => Number(row.seen_on_server || 0) === 1);
+
+        await interaction.reply(seedTestMessage({
+          server,
+          threshold: Number(round.threshold || config.seedThreshold || 30),
+          online,
+          participants,
+          eligible,
+        }));
+        return;
       } else if (interaction.commandName === "seed-panel") {
         if (interaction.channelId !== String(config.seedChannelId || "").trim()) {
           await interaction.reply({
