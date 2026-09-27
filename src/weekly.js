@@ -98,11 +98,11 @@ function weeklyKey(date = new Date()) {
   return `${p.year}-${p.month}-${p.day}`;
 }
 
-function weeklyField(name, row, value) {
+function weeklyField(name, row, value, inline = true) {
   return {
     name,
     value: row ? `**${playerName(row)}**\n${value(row)}` : "Нет данных за неделю",
-    inline: true,
+    inline,
   };
 }
 
@@ -134,7 +134,7 @@ export async function buildWeeklyDigest() {
 }
 
 export function weeklyWebhookPayload(stats, { test = false } = {}) {
-  const title = test ? "ТЕСТ • ИТОГИ НЕДЕЛИ" : "ИТОГИ НЕДЕЛИ";
+  const title = test ? "ТЕСТ • ПОБЕДИТЕЛИ НЕДЕЛИ" : "🏆 ПОБЕДИТЕЛИ НЕДЕЛИ";
   const embed = {
     color: 0xe8a317,
     author: {
@@ -143,17 +143,18 @@ export function weeklyWebhookPayload(stats, { test = false } = {}) {
     },
     title,
     description:
-      "Статистика WARDOGS за последние 7 дней. Учитываются игроки с минимум 60 минутами игры.",
+      "**Лучшие бойцы ZARUBA за последние 7 дней.**\nВ публикации — только победители своих номинаций.",
     fields: [
       weeklyField(
         "🐺 ЛИДЕР СТАИ",
         stats.leader,
-        (row) => `${num(row.kills)} убийств · K/D ${formatKd(row)}`,
+        (row) => `${num(row.kills)} убийств  •  K/D ${formatKd(row)}`,
+        false,
       ),
       weeklyField(
         "💰 БАНКИР",
         stats.banker,
-        (row) => `$${formatMoney(row.cash)} заработано`,
+        (row) => `${formatMoney(row.cash)} заработано`,
       ),
       weeklyField(
         "🕒 ВЕТЕРАН НЕДЕЛИ",
@@ -163,7 +164,7 @@ export function weeklyWebhookPayload(stats, { test = false } = {}) {
       weeklyField(
         "🏅 ЛИДЕР ПО ПОБЕДАМ",
         stats.wins,
-        (row) => `${num(row.wins)} побед · ${num(row.matches)} матчей`,
+        (row) => `${num(row.wins)} побед  •  ${num(row.matches)} матчей`,
       ),
       weeklyField(
         "🌱 SEED-БОЕЦ",
@@ -172,7 +173,7 @@ export function weeklyWebhookPayload(stats, { test = false } = {}) {
       ),
     ],
     footer: {
-      text: `ZARUBA SERVER · WARDOGS · Warcon 7d · игроков: ${stats.total}`,
+      text: "ZARUBA SERVER · WARDOGS · последние 7 дней",
     },
     timestamp: new Date().toISOString(),
     thumbnail: {
