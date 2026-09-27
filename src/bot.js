@@ -15,6 +15,7 @@ import { Cooldown } from "./cooldown.js";
 import { resolveSteamId } from "./lookup.js";
 import { buildView } from "./view.js";
 import { fetchWarconCareer } from "./warcon.js";
+import { sendWeeklyDigest } from "./weekly.js";
 import {
   dogCardMessage,
   seedPanelMessage,
@@ -29,7 +30,7 @@ import {
 } from "./panel.js";
 const usageCd = new Cooldown(60_000);
 const DOG_CHANNEL_ID = "1553370010158759969";
-const OWNED_COMMANDS = new Set(["dog", "seed-panel", "seed-test", "seed-last"]);
+const OWNED_COMMANDS = new Set(["dog", "seed-panel", "seed-test", "seed-last", "weekly-test"]);
 
 export function buildCommands() {
   const dog = new SlashCommandBuilder()
@@ -58,7 +59,12 @@ export function buildCommands() {
     .setDescription("Показать последний завершённый SEED")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
-  return [dog, seedPanel, seedTest, seedLast];
+  const weeklyTest = new SlashCommandBuilder()
+    .setName("weekly-test")
+    .setDescription("Отправить тестовые итоги недели через отдельный webhook")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
+
+  return [dog, seedPanel, seedTest, seedLast, weeklyTest];
 }
 
 async function sendSeedResult(client, result) {
@@ -491,6 +497,19 @@ export async function startBot({ token, clientId, guildId, store, poller, server
           eligible,
           endedAt: round.ended_at,
         }));
+        return;
+      } else if (interaction.commandName === "weekly-test") {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        try {
+          const stats = await sendWeeklyDigest({ test: true });
+          await interaction.editReply(
+            `Тест недельной статистики отправлен через webhook. Игроков в выборке: ${stats.total}.`,
+          );
+        } catch (error) {
+          await interaction.editReply(
+            `Не удалось отправить недельную статистику: ${error instanceof Error ? error.message : error}`,
+          );
+        }
         return;
       } else if (interaction.commandName === "seed-panel") {
         if (interaction.channelId !== String(config.seedChannelId || "").trim()) {
