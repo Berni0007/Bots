@@ -162,7 +162,7 @@ function svgFor(stats) {
   const cardsSvg = cards.map((item, index) =>
     card({
       x: cardsX + index * (cardW + gap),
-      y: 500,
+      y: 508,
       w: cardW,
       h: 160,
       ...item,
@@ -218,27 +218,25 @@ function svgFor(stats) {
           fill="none" stroke="#839087" stroke-width="2"/>
   </g>
 
-  <g transform="translate(58 46)">
-    <rect x="0" y="0" width="100" height="100" rx="20" fill="#141a16" stroke="#b88945" stroke-width="2"/>
-    <path d="M26 66 L42 31 L57 50 L78 27 L72 67 L53 79 Z" fill="none" stroke="#e7dfcf" stroke-width="6" stroke-linejoin="round"/>
-    <text x="122" y="43" class="title" font-size="34">ZARUBA</text>
-    <text x="122" y="76" class="sub" font-size="20">WARDOGS</text>
+  <g transform="translate(56 46)">
+    <rect x="0" y="0" width="96" height="96" rx="20" fill="#141a16" stroke="#b88945" stroke-width="2"/>
+    <path d="M24 63 L40 31 L55 49 L76 27 L70 65 L51 76 Z" fill="none" stroke="#efe6d3" stroke-width="6" stroke-linejoin="round"/>
   </g>
 
-  <text x="640" y="105" text-anchor="middle" class="title" font-size="59">ПОБЕДИТЕЛИ НЕДЕЛИ</text>
-  <text x="640" y="145" text-anchor="middle" class="muted" font-size="20" letter-spacing="5">ПОСЛЕДНИЕ 7 ДНЕЙ</text>
+  <text x="710" y="100" text-anchor="middle" class="title" font-size="54">ПОБЕДИТЕЛИ НЕДЕЛИ</text>
+  <text x="710" y="139" text-anchor="middle" class="muted" font-size="19" letter-spacing="5">ПОСЛЕДНИЕ 7 ДНЕЙ</text>
 
   <g filter="url(#shadow)">
-    <rect x="154" y="190" width="972" height="255" rx="24" fill="url(#leader)" stroke="#b98b48" stroke-width="2"/>
-    <rect x="154" y="190" width="9" height="255" rx="4" fill="#d6a553"/>
-    <text x="204" y="243" class="sub" font-size="22">ЛИДЕР СТАИ</text>
-    <text x="204" y="312" class="name" font-size="${leaderNameSize}">${esc(leaderName)}</text>
-    <line x1="204" y1="337" x2="1070" y2="337" stroke="#59635b" stroke-width="1"/>
-    <text x="204" y="390" class="muted" font-size="19">УБИЙСТВА</text>
-    <text x="335" y="390" class="title" font-size="32">${leader ? num(leader.kills) : "—"}</text>
-    <text x="550" y="390" class="muted" font-size="19">K/D</text>
-    <text x="615" y="390" class="title" font-size="32">${leader ? kdOf(leader).toFixed(2) : "—"}</text>
-    <g transform="translate(935 236)" opacity=".92">
+    <rect x="154" y="198" width="972" height="255" rx="24" fill="url(#leader)" stroke="#b98b48" stroke-width="2"/>
+    <rect x="154" y="198" width="9" height="255" rx="4" fill="#d6a553"/>
+    <text x="204" y="251" class="sub" font-size="22">ЛИДЕР СТАИ</text>
+    <text x="204" y="320" class="name" font-size="${leaderNameSize}">${esc(leaderName)}</text>
+    <line x1="204" y1="345" x2="1070" y2="345" stroke="#59635b" stroke-width="1"/>
+    <text x="204" y="398" class="muted" font-size="19">УБИЙСТВА</text>
+    <text x="335" y="398" class="title" font-size="32">${leader ? num(leader.kills) : "—"}</text>
+    <text x="550" y="398" class="muted" font-size="19">K/D</text>
+    <text x="615" y="398" class="title" font-size="32">${leader ? kdOf(leader).toFixed(2) : "—"}</text>
+    <g transform="translate(935 244)" opacity=".92">
       <path d="M0 72 L28 13 L53 45 L90 0 L80 69 L48 92 Z" fill="none" stroke="#d7b365" stroke-width="8" stroke-linejoin="round"/>
       <circle cx="58" cy="48" r="5" fill="#d7b365"/>
     </g>
