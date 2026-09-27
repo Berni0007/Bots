@@ -90,10 +90,10 @@ export class Poller {
         );
 
         if (online > Number(activeSeed.threshold || 30)) {
+          this.store.markSeedRewarded(activeSeed.id, rosterIds);
           const participants = this.store.completeSeedRound(activeSeed.id, Date.now());
-          const rosterSet = new Set(rosterIds);
           const eligible = participants.filter(
-            (row) => rosterSet.has(String(row.steam_id || "")),
+            (row) => Number(row.rewarded || 0) === 1,
           );
           if (this.onSeedComplete) {
             void Promise.resolve(
