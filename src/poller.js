@@ -91,8 +91,9 @@ export class Poller {
 
         if (online > Number(activeSeed.threshold || 30)) {
           const participants = this.store.completeSeedRound(activeSeed.id, Date.now());
+          const rosterSet = new Set(rosterIds);
           const eligible = participants.filter(
-            (row) => Number(row.seen_on_server || 0) === 1,
+            (row) => rosterSet.has(String(row.steam_id || "")),
           );
           if (this.onSeedComplete) {
             void Promise.resolve(
