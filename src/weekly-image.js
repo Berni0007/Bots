@@ -165,6 +165,10 @@ function overlayFor(stats) {
   const seedName = seed ? nameOf(seed) : "Нет данных";
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
+    <!-- Перерисовываем только заголовок ЛИДЕР СТАИ по центру правой части блока -->
+    ${box(435, 276, 590, 54, 6)}
+    ${centeredText("ЛИДЕР СТАИ", 730, 303, 30, 700, "#f3d39a")}
+
     <!-- ЛИДЕР СТАИ -->
     ${box(452, 339, 548, 40, 5)}
     ${leftText(leaderName, 470, 359, fitSize(leaderName, 31, 24, 20), 700)}
