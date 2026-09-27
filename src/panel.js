@@ -263,6 +263,51 @@ export function seedSteamModal() {
     );
 }
 
+
+export function seedTestMessage({ server, threshold, online, participants = [], eligible = [] }) {
+  const all = participants.length
+    ? participants
+        .map((row, index) => {
+          const seen = Number(row.seen_on_server || 0) === 1 ? "✅ на сервере" : "⏳ ещё не замечен";
+          return `${index + 1}. **${row.name || row.steam_id}** · ${seen} · \`${row.steam_id}\``;
+        })
+        .join("\n")
+    : "Пока никто не зарегистрировался.";
+
+  const confirmed = eligible.length
+    ? eligible
+        .map((row, index) => `${index + 1}. **${row.name || row.steam_id}** · \`${row.steam_id}\``)
+        .join("\n")
+    : "Пока никого.";
+
+  const embed = new EmbedBuilder()
+    .setColor(COLOR)
+    .setAuthor({
+      name: "ZARUBA · WARDOGS",
+      iconURL: "https://i.ibb.co/rRhNwJc1/4.png",
+    })
+    .setTitle("SEED · ТЕСТ ОТЧЁТА")
+    .setDescription(
+      [
+        "**Это проверка. Текущий SEED не завершается и награды не выдаются.**",
+        "",
+        `**Сервер:** ${server?.name || "ZARUBA"}`,
+        `**Онлайн сейчас:** ${online}`,
+        `**Боевой порог:** больше ${threshold}`,
+        "",
+        "**Зарегистрировались:**",
+        all,
+        "",
+        "**Бот уже увидел на сервере:**",
+        confirmed,
+      ].join("\n"),
+    )
+    .setFooter({ text: "ZARUBA SERVER · WARDOGS SEED TEST" })
+    .setTimestamp();
+
+  return { embeds: [embed], components: [], files: [] };
+}
+
 export function seedResultMessage({ server, threshold, online, eligible = [] }) {
   const list = eligible.length
     ? eligible
