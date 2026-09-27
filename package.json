@@ -19,5 +19,8 @@
     "discord.js": "14.22.1",
     "dotenv": "16.6.1",
     "undici": "7.16.0"
+  },
+  "optionalDependencies": {
+    "sharp": "0.34.4"
   }
 }
