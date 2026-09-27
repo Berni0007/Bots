@@ -53,7 +53,7 @@ export const config = {
   warconBaseUrl: env("WARCON_BASE_URL", "https://warcon.zaruba-server.online"),
   warconApiKey: env("WARCON_API_KEY"),
   warconServerId: env("WARCON_SERVER_ID"),
-  warconPublicServerId: env("WARCON_PUBLIC_SERVER_ID"),
+  warconPublicServerId: env("WARCON_PUBLIC_SERVER_ID", "55bf8023-2da9-4fc4-9e30-c2353e11fbbc"),
   steamApiKey: env("STEAM_API_KEY"),
   appId: env("WARDOGS_APP_ID", "1867240"),
   databasePath: resolve(root, env("DATABASE_PATH", defaultDatabasePath)),
