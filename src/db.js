@@ -99,6 +99,11 @@ CREATE TABLE IF NOT EXISTS seed_participants (
 CREATE INDEX IF NOT EXISTS idx_seed_round_active ON seed_rounds(server_id, status);
 CREATE INDEX IF NOT EXISTS idx_seed_participants_round ON seed_participants(round_id);
 
+CREATE TABLE IF NOT EXISTS weekly_digest_log (
+  week_key TEXT PRIMARY KEY,
+  sent_at INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_players_kills ON players(kills DESC);
 CREATE INDEX IF NOT EXISTS idx_players_hours ON players(seconds_played DESC);
 CREATE INDEX IF NOT EXISTS idx_match_steam ON match_stats(steam_id, ended_at);
@@ -336,6 +341,14 @@ export class StatsStore {
       LEFT JOIN players p ON p.steam_id = sp.steam_id
       WHERE sp.round_id = ?
       ORDER BY sp.joined_at ASC
+    `);
+    this._weeklyDigestSent = db.prepare(`
+      SELECT week_key, sent_at FROM weekly_digest_log WHERE week_key = ?
+    `);
+    this._markWeeklyDigestSent = db.prepare(`
+      INSERT INTO weekly_digest_log (week_key, sent_at)
+      VALUES (@weekKey, @sentAt)
+      ON CONFLICT(week_key) DO UPDATE SET sent_at = excluded.sent_at
     `);
   }
 
@@ -616,6 +629,17 @@ export class StatsStore {
 
   seedParticipants(roundId) {
     return this._seedParticipants.all(roundId);
+  }
+
+  weeklyDigestSent(weekKey) {
+    return Boolean(this._weeklyDigestSent.get(String(weekKey)));
+  }
+
+  markWeeklyDigestSent(weekKey, sentAt = Date.now()) {
+    this._markWeeklyDigestSent.run({
+      weekKey: String(weekKey),
+      sentAt: Number(sentAt) || Date.now(),
+    });
   }
 
   panel(channelId) {
