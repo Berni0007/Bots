@@ -6,6 +6,7 @@ import { openDb } from "./db.js";
 import { diagnoseDiscordChannels } from "./discord-diagnostic.js";
 import { startMockRcon } from "./mock-rcon.js";
 import { Poller } from "./poller.js";
+import { startWeeklyDigest } from "./weekly.js";
 
 async function main() {
   console.log("WARDOGS STATS — сбор статистики запущен");
@@ -61,6 +62,8 @@ async function main() {
   poller.start();
   console.log(`поллер: ${servers.map((server) => server.name).join(", ")} каждые ${config.pollMs} мс`);
 
+  const stopWeeklyDigest = startWeeklyDigest({ store });
+
   if (!config.pollerOnly && config.discordToken) {
     await startBot({
       token: config.discordToken,
@@ -76,6 +79,7 @@ async function main() {
 
   const shutdown = async () => {
     poller.stop();
+    stopWeeklyDigest();
     store.close();
     if (mock) await mock.close();
     process.exit(0);
