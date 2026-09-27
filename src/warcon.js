@@ -4,6 +4,20 @@ function baseUrl() {
   return String(config.warconBaseUrl || "").replace(/\/$/, "");
 }
 
+async function publicApi(path) {
+  if (!baseUrl()) return null;
+  const response = await fetch(`${baseUrl()}${path}`, {
+    headers: {
+      Accept: "application/json",
+    },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) {
+    throw new Error(`Warcon public ${response.status} ${path}`);
+  }
+  return response.json();
+}
+
 async function api(path) {
   if (!config.warconApiKey || !baseUrl()) return null;
   const response = await fetch(`${baseUrl()}${path}`, {
@@ -63,9 +77,13 @@ export async function fetchWarconLeaderboard({
   minMinutes = 60,
   maxPages = 20,
 } = {}) {
-  const serverId = await resolveWarconServerId();
+  const publicServerId = String(
+    config.warconPublicServerId || config.warconServerId || "",
+  ).trim();
+  const serverId = publicServerId || await resolveWarconServerId();
   if (!serverId) return null;
 
+  const usePublic = Boolean(publicServerId);
   const rows = [];
   let total = 0;
   let hasFeed = false;
@@ -80,9 +98,10 @@ export async function fetchWarconLeaderboard({
       page: String(page),
       minMinutes: String(minMinutes),
     });
-    const data = await api(
-      `/api/servers/${encodeURIComponent(serverId)}/leaderboard?${params.toString()}`,
-    );
+    const path = usePublic
+      ? `/api/public/servers/${encodeURIComponent(serverId)}/leaderboard?${params.toString()}`
+      : `/api/servers/${encodeURIComponent(serverId)}/leaderboard?${params.toString()}`;
+    const data = usePublic ? await publicApi(path) : await api(path);
     const part = Array.isArray(data?.rows) ? data.rows : [];
     total = Number(data?.total) || part.length;
     pageSize = Number(data?.pageSize) || pageSize;
