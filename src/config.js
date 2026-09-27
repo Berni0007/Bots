@@ -48,6 +48,8 @@ export const config = {
   seedChannelId: env("SEED_CHANNEL_ID", "1553401907740147882"),
   seedThreshold: Math.max(1, Number(env("SEED_THRESHOLD", "30")) || 30),
   dogBannerUrl: env("DOG_BANNER_URL"),
+  weeklyWebhookUrl: env("WEEKLY_WEBHOOK_URL"),
+  weeklyBannerUrl: env("WEEKLY_BANNER_URL"),
   warconBaseUrl: env("WARCON_BASE_URL", "https://warcon.zaruba-server.online"),
   warconApiKey: env("WARCON_API_KEY"),
   warconServerId: env("WARCON_SERVER_ID"),
