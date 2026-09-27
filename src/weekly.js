@@ -271,7 +271,7 @@ export function startWeeklyDigest({ store }) {
   const check = async () => {
     if (busy) return;
     const p = moscowParts();
-    if (p.weekday !== "Mon" || Number(p.hour) < 12) return;
+    if (p.weekday !== "Mon" || Number(p.hour) < 19) return;
 
     const key = weeklyKey();
     if (store.weeklyDigestSent(key)) return;
