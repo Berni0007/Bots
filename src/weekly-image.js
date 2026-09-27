@@ -135,8 +135,8 @@ function nameOf(row) {
   return String(row?.name || row?.steamId || "—");
 }
 
-function box(x, y, w, h, radius = 8) {
-  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${radius}" fill="#121510" fill-opacity="0.985"/>`;
+function box(x, y, w, h, radius = 8, opacity = 0.985) {
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${radius}" fill="#121510" fill-opacity="${opacity}"/>`;
 }
 
 function centeredText(value, x, y, size, weight = 700, fill = "#f4eee2") {
@@ -151,57 +151,64 @@ function leftText(value, x, y, size, weight = 700, fill = "#f4eee2") {
     fill="${fill}">${esc(value)}</text>`;
 }
 
-function overlayFor(stats) {
+// Measure real glyph widths: long and wide names must stay inside their cards.
+async function fittedName(sharp, value, width, base, minimum) {
+  const clean = String(value).replace(/[\x00-\x1f\x7f]/g, " ").trim().slice(0, 160) || "—";
+  async function measure(text, size) {
+    const input = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="12000" height="120"><text x="8" y="80" font-family="DejaVu Sans" font-size="${size}" font-weight="700" fill="white">${esc(text)}</text></svg>`);
+    const { info } = await sharp(input).trim().toBuffer({ resolveWithObject: true });
+    return info.width;
+  }
+  const measured = await measure(clean, base);
+  const size = Math.max(minimum, Math.min(base, Math.floor(base * width / measured)));
+  if (measured * size / base <= width) return { value: clean, size };
+  const chars = Array.from(clean);
+  let low = 0, high = chars.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (await measure(chars.slice(0, mid).join("") + "…", size) <= width) low = mid;
+    else high = mid - 1;
+  }
+  return { value: chars.slice(0, low).join("") + "…", size };
+}
+
+async function overlayFor(stats, sharp) {
   const leader = stats.leader || null;
   const banker = stats.banker || null;
   const veteran = stats.veteran || null;
   const wins = stats.wins || null;
   const seed = stats.seed || null;
-
-  const leaderName = nameOf(leader);
-  const bankerName = nameOf(banker);
-  const veteranName = nameOf(veteran);
-  const winsName = nameOf(wins);
   const seedName = seed ? nameOf(seed) : "Нет данных";
-
+  const names = await Promise.all([
+    fittedName(sharp, nameOf(leader), 532, 42, 30),
+    fittedName(sharp, nameOf(banker), 236, 28, 23),
+    fittedName(sharp, nameOf(veteran), 236, 28, 23),
+    fittedName(sharp, nameOf(wins), 288, 28, 23),
+  ]);
+  const ink = "#f8f4e9";
+  const gold = "#d8b778";
+  const muted = "#b7bcae";
+  const rule = (x, y, w) => `<path d="M${x} ${y}h${w}" stroke="#a58c5e" stroke-opacity=".38"/>`;
+  function winner(x, w, name, value, label, size = 31) {
+    return `${box(x, 534, w, 101, 5, 1)}
+      ${leftText(name.value, x + 10, 554, name.size, 700, ink)}
+      ${rule(x + 10, 578, w - 20)}
+      ${leftText(value, x + 10, 601, size, 700, gold)}
+      ${leftText(label, x + 10, 624, 14, 400, muted)}`;
+  }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
-    <!-- Перерисовываем только заголовок ЛИДЕР СТАИ по центру правой части блока -->
-    ${box(435, 276, 590, 54, 6)}
-    ${centeredText("ЛИДЕР СТАИ", 730, 303, 30, 700, "#f3d39a")}
-
-    <!-- ЛИДЕР СТАИ -->
-    ${box(452, 339, 548, 40, 5)}
-    ${leftText(leaderName, 470, 359, fitSize(leaderName, 31, 24, 20), 700)}
-
-    ${box(590, 407, 88, 28, 4)}
-    ${centeredText(leader ? String(num(leader.kills)) : "—", 634, 421, 24, 700)}
-
-    ${box(871, 407, 126, 28, 4)}
-    ${centeredText(leader ? kdOf(leader).toFixed(2) : "—", 934, 421, 24, 700)}
-
-    <!-- БАНКИР -->
-    ${box(54, 545, 232, 28, 4)}
-    ${leftText(bankerName, 62, 559, fitSize(bankerName, 22, 18, 16), 700)}
-
-    ${box(182, 598, 107, 26, 4)}
-    ${centeredText(banker ? money(banker.cash) : "—", 235, 611, 18, 700)}
-
-    <!-- ВЕТЕРАН НЕДЕЛИ -->
-    ${box(354, 545, 237, 28, 4)}
-    ${leftText(veteranName, 363, 559, fitSize(veteranName, 22, 18, 16), 700)}
-
-    ${box(500, 598, 92, 26, 4)}
-    ${centeredText(veteran ? minutes(veteran.minutes) : "—", 546, 611, 16, 700)}
-
-    <!-- ЛИДЕР ПО ПОБЕДАМ -->
-    ${box(651, 545, 286, 28, 4)}
-    ${leftText(winsName, 660, 559, fitSize(winsName, 22, 20, 16), 700)}
-
-    ${box(735, 598, 53, 26, 4)}
-    ${centeredText(wins ? String(num(wins.wins)) : "—", 761, 611, 17, 700)}
-
-    ${box(892, 598, 51, 26, 4)}
-    ${centeredText(wins ? String(num(wins.matches)) : "—", 917, 611, 17, 700)}
+    <!-- Unified leader panel, with a large name and two aligned metrics. -->
+    ${box(435, 276, 590, 169, 6, 1)}
+    ${centeredText("ЛИДЕР СТАИ", 730, 300, 25, 700, gold)}
+    ${centeredText(names[0].value, 730, 349, names[0].size, 700, ink)}
+    ${rule(465, 381, 530)}
+    ${centeredText(leader ? money(leader.kills) : "—", 586, 408, 32, 700, ink)}
+    ${centeredText("УБИЙСТВА", 586, 436, 13, 700, muted)}
+    ${centeredText(leader ? kdOf(leader).toFixed(2) : "—", 875, 408, 32, 700, ink)}
+    ${centeredText("K/D", 875, 436, 13, 700, muted)}
+    ${winner(48, 256, names[1], banker ? money(banker.cash) : "—", "ЗАРАБОТАНО", 28)}
+    ${winner(350, 256, names[2], veteran ? minutes(veteran.minutes) : "—", "ВРЕМЯ В ИГРЕ", 26)}
+    ${winner(651, 308, names[3], wins ? `${num(wins.wins)} / ${num(wins.matches)}` : "—", "ПОБЕДЫ / МАТЧИ")}
 
     <!-- SEED-БОЕЦ -->
     ${box(1000, 545, 231, 28, 4)}
@@ -241,7 +248,7 @@ export async function renderWeeklyImage(stats) {
       .png()
       .toBuffer();
 
-    const overlay = Buffer.from(overlayFor(stats), "utf8");
+    const overlay = Buffer.from(await overlayFor(stats, sharp), "utf8");
 
     const buffer = await sharp(base)
       .composite([{ input: overlay, top: 0, left: 0 }])
@@ -257,3 +264,4 @@ export async function renderWeeklyImage(stats) {
     };
   }
 }
+
