@@ -1,5 +1,68 @@
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 const WIDTH = 1280;
 const HEIGHT = 720;
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(HERE, "..");
+let fontConfigReady = false;
+
+function xmlEscape(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function prepareCyrillicFonts() {
+  if (fontConfigReady) return { ok: true, reason: "" };
+
+  const fontDir = resolve(ROOT, "node_modules", "dejavu-fonts-ttf", "ttf");
+  const regular = resolve(fontDir, "DejaVuSans.ttf");
+  const bold = resolve(fontDir, "DejaVuSans-Bold.ttf");
+
+  if (!existsSync(regular) || !existsSync(bold)) {
+    return {
+      ok: false,
+      reason: "dejavu-fonts-ttf не установлен на хосте",
+    };
+  }
+
+  try {
+    const cacheDir = resolve(ROOT, "data", "fontconfig-cache");
+    mkdirSync(cacheDir, { recursive: true });
+    const configPath = resolve(ROOT, "data", "zaruba-fonts.conf");
+    const xml = `<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+  <include ignore_missing="yes">/etc/fonts/fonts.conf</include>
+  <dir>${xmlEscape(fontDir)}</dir>
+  <cachedir>${xmlEscape(cacheDir)}</cachedir>
+  <match target="pattern">
+    <test qual="any" name="family">
+      <string>sans-serif</string>
+    </test>
+    <edit name="family" mode="prepend" binding="strong">
+      <string>DejaVu Sans</string>
+    </edit>
+  </match>
+</fontconfig>
+`;
+    writeFileSync(configPath, xml, "utf8");
+    process.env.FONTCONFIG_FILE = configPath;
+    fontConfigReady = true;
+    return { ok: true, reason: "" };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: `fontconfig: ${error instanceof Error ? error.message : error}`,
+    };
+  }
+}
+
 
 function num(value) {
   const n = Number(value);
@@ -130,12 +193,12 @@ function svgFor(stats) {
       <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#000" flood-opacity=".45"/>
     </filter>
     <style>
-      .title { font-family: "DejaVu Sans", Arial, sans-serif; font-weight: 800; fill: #f0e8d8; letter-spacing: 2px; }
-      .sub { font-family: "DejaVu Sans", Arial, sans-serif; font-weight: 700; fill: #c99c55; letter-spacing: 8px; }
-      .label { font-family: "DejaVu Sans", Arial, sans-serif; font-size: 21px; font-weight: 800; fill: #e8dec9; letter-spacing: .5px; }
-      .name { font-family: "DejaVu Sans", Arial, sans-serif; font-weight: 800; fill: #ffffff; }
-      .value { font-family: "DejaVu Sans", Arial, sans-serif; font-size: 22px; font-weight: 700; fill: #d7c9ae; }
-      .muted { font-family: "DejaVu Sans", Arial, sans-serif; fill: #9aa39c; }
+      .title { font-family: "DejaVu Sans", sans-serif; font-weight: 800; fill: #f0e8d8; letter-spacing: 2px; }
+      .sub { font-family: "DejaVu Sans", sans-serif; font-weight: 700; fill: #c99c55; letter-spacing: 8px; }
+      .label { font-family: "DejaVu Sans", sans-serif; font-size: 21px; font-weight: 800; fill: #e8dec9; letter-spacing: .5px; }
+      .name { font-family: "DejaVu Sans", sans-serif; font-weight: 800; fill: #ffffff; }
+      .value { font-family: "DejaVu Sans", sans-serif; font-size: 22px; font-weight: 700; fill: #d7c9ae; }
+      .muted { font-family: "DejaVu Sans", sans-serif; fill: #9aa39c; }
     </style>
   </defs>
 
@@ -190,6 +253,15 @@ function svgFor(stats) {
 }
 
 export async function renderWeeklyImage(stats) {
+  const fonts = prepareCyrillicFonts();
+  if (!fonts.ok) {
+    return {
+      ok: false,
+      reason: fonts.reason,
+      buffer: null,
+    };
+  }
+
   let sharp;
   try {
     const mod = await import("sharp");
