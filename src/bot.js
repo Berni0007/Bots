@@ -148,7 +148,7 @@ async function enrollSeed(interaction, store, poller, servers, steamId) {
   const payload = {
     content:
       `Ты записан в текущий SEED. SteamID: \`${steamId}\`.\n` +
-      "Награда будет засчитана, когда бот увидит этот SteamID на сервере до завершения SEED.",
+      "Награда будет засчитана только если этот SteamID останется на сервере до момента завершения SEED.",
     flags: MessageFlags.Ephemeral,
   };
   if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
@@ -370,7 +370,10 @@ export async function startBot({ token, clientId, guildId, store, poller, server
         store.markSeedSeen(round.id, rosterIds);
 
         const participants = store.seedParticipants(round.id);
-        const eligible = participants.filter((row) => Number(row.seen_on_server || 0) === 1);
+        const rosterSet = new Set(rosterIds);
+        const eligible = participants.filter((row) =>
+          rosterSet.has(String(row.steam_id || "")),
+        );
 
         await interaction.reply(seedTestMessage({
           server,
