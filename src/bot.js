@@ -502,8 +502,11 @@ export async function startBot({ token, clientId, guildId, store, poller, server
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         try {
           const stats = await sendWeeklyDigest({ test: true });
+          const mode = stats.output === "image"
+            ? "картинка сформирована и отправлена"
+            : `картинка недоступна, отправлен резервный embed (${stats.imageReason || "без причины"})`;
           await interaction.editReply(
-            `Тест недельной статистики отправлен через webhook. Игроков в выборке: ${stats.total}.`,
+            `Тест недельной статистики отправлен через webhook: ${mode}. Игроков в выборке: ${stats.total}.`,
           );
         } catch (error) {
           await interaction.editReply(
