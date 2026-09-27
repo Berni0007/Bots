@@ -38,12 +38,18 @@ const defaultDatabasePath = process.env.DATA_DIR
     ? "/app/data/stats.db"
     : "./data/stats.db";
 
+// Migrate the old live channel: it is reserved for the join button.
+function liveChannelId() {
+  const id = String(env("LIVE_CHANNEL_ID")).trim();
+  return id === "1548325425678262313" ? "1549499002259771523" : id;
+}
+
 export const config = {
   root,
   discordToken: env("DISCORD_TOKEN") || env("DISCORD_BOT_TOKEN") || env("BOT_TOKEN"),
   discordClientId: env("DISCORD_CLIENT_ID"),
   discordGuildId: env("DISCORD_GUILD_ID"),
-  liveChannelId: env("LIVE_CHANNEL_ID"),
+  liveChannelId: liveChannelId(),
   matchResultsChannelId: env("MATCH_RESULTS_CHANNEL_ID"),
   seedChannelId: env("SEED_CHANNEL_ID", "1553401907740147882"),
   seedThreshold: Math.max(1, Number(env("SEED_THRESHOLD", "30")) || 30),

@@ -288,7 +288,7 @@ export function startAutomaticDiscordOutput({ token, liveChannelId, resultsChann
   const rest = new REST({ version: "10" }).setToken(token);
   const file = stateFile(databasePath);
   const outputState = safeRead(file);
-  let liveMessageId = outputState.liveMessageId || "";
+  let liveMessageId = outputState.liveChannelId === liveChannelId ? (outputState.liveMessageId || "") : "";
   let lastResultKey = outputState.lastResultKey || "";
   let lastLiveAt = 0;
   let lastResultRetryAt = 0;
@@ -297,6 +297,7 @@ export function startAutomaticDiscordOutput({ token, liveChannelId, resultsChann
 
   function saveState() {
     outputState.liveMessageId = liveMessageId;
+    outputState.liveChannelId = liveChannelId;
     outputState.lastResultKey = lastResultKey;
     safeWrite(file, outputState);
   }
@@ -313,7 +314,8 @@ export function startAutomaticDiscordOutput({ token, liveChannelId, resultsChann
         try {
           await rest.patch(Routes.channelMessage(liveChannelId, liveMessageId), { body });
           return;
-        } catch {
+        } catch (error) {
+          if (Number(error?.code) !== 10008) throw error;
           liveMessageId = "";
         }
       }
