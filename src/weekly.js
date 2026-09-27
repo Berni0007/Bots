@@ -1,5 +1,6 @@
 import { config } from "./config.js";
 import { fetchWarconLeaderboard } from "./warcon.js";
+import { renderWeeklyImage } from "./weekly-image.js";
 
 const LOGO_URL = "https://i.ibb.co/rRhNwJc1/4.png";
 const MOSCOW_TZ = "Europe/Moscow";
@@ -197,9 +198,48 @@ export async function sendWeeklyDigest({ test = false } = {}) {
   if (!webhookUrl) throw new Error("WEEKLY_WEBHOOK_URL не задан");
 
   const stats = await buildWeeklyDigest();
-  const payload = weeklyWebhookPayload(stats, { test });
   const separator = webhookUrl.includes("?") ? "&" : "?";
-  const response = await fetch(`${webhookUrl}${separator}wait=true`, {
+  const target = `${webhookUrl}${separator}wait=true`;
+
+  const rendered = await renderWeeklyImage(stats);
+  if (rendered.ok && rendered.buffer) {
+    const form = new FormData();
+    form.append(
+      "payload_json",
+      JSON.stringify({
+        username: "ZARUBA · WARDOGS",
+        avatar_url: LOGO_URL,
+        content: test
+          ? "🧪 **Тест · Победители недели**"
+          : "🏆 **Победители недели · ZARUBA WARDOGS**",
+        allowed_mentions: { parse: [] },
+      }),
+    );
+    form.append(
+      "files[0]",
+      new Blob([rendered.buffer], { type: "image/png" }),
+      "zaruba-wardogs-weekly.png",
+    );
+
+    const response = await fetch(target, {
+      method: "POST",
+      body: form,
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `Discord webhook ${response.status}${body ? `: ${body.slice(0, 180)}` : ""}`,
+      );
+    }
+
+    return { ...stats, output: "image", imageReason: "" };
+  }
+
+  console.warn("weekly image:", rendered.reason || "рендер недоступен; использую embed");
+  const payload = weeklyWebhookPayload(stats, { test });
+  const response = await fetch(target, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
@@ -208,10 +248,16 @@ export async function sendWeeklyDigest({ test = false } = {}) {
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    throw new Error(`Discord webhook ${response.status}${body ? `: ${body.slice(0, 180)}` : ""}`);
+    throw new Error(
+      `Discord webhook ${response.status}${body ? `: ${body.slice(0, 180)}` : ""}`,
+    );
   }
 
-  return stats;
+  return {
+    ...stats,
+    output: "embed",
+    imageReason: rendered.reason || "рендер изображения недоступен",
+  };
 }
 
 export function startWeeklyDigest({ store }) {
