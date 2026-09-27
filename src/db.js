@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS seed_participants (
   joined_at INTEGER NOT NULL,
   seen_on_server INTEGER NOT NULL DEFAULT 0,
   seconds_on_server INTEGER NOT NULL DEFAULT 0,
+  rewarded INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (round_id, steam_id)
 );
 
@@ -141,6 +142,7 @@ export function openDb(path) {
   db.exec(SCHEMA);
   ensureColumn(db, "match_stats", "cash_earned", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "seed_participants", "seconds_on_server", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "seed_participants", "rewarded", "INTEGER NOT NULL DEFAULT 0");
   backfillServerStats(db);
   return new StatsStore(db);
 }
@@ -313,10 +315,20 @@ export class StatsStore {
           seconds_on_server = seconds_on_server + @seconds
       WHERE round_id = @roundId AND steam_id = @steamId
     `);
+    this._markSeedRewarded = db.prepare(`
+      UPDATE seed_participants
+      SET rewarded = 1
+      WHERE round_id = @roundId AND steam_id = @steamId
+    `);
     this._finishSeedRound = db.prepare(`
       UPDATE seed_rounds
       SET status = 'completed', ended_at = @endedAt
       WHERE id = @roundId AND status = 'active'
+    `);
+    this._lastCompletedSeedRound = db.prepare(`
+      SELECT * FROM seed_rounds
+      WHERE server_id = ? AND status = 'completed'
+      ORDER BY ended_at DESC, id DESC LIMIT 1
     `);
     this._seedParticipants = db.prepare(`
       SELECT sp.*, COALESCE(p.name, sp.steam_id) AS name
@@ -587,9 +599,19 @@ export class StatsStore {
     }
   }
 
+  markSeedRewarded(roundId, steamIds) {
+    for (const steamId of steamIds || []) {
+      this._markSeedRewarded.run({ roundId, steamId });
+    }
+  }
+
   completeSeedRound(roundId, endedAt = Date.now()) {
     this._finishSeedRound.run({ roundId, endedAt });
     return this._seedParticipants.all(roundId);
+  }
+
+  lastCompletedSeedRound(serverId) {
+    return this._lastCompletedSeedRound.get(String(serverId)) || null;
   }
 
   seedParticipants(roundId) {
