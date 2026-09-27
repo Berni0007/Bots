@@ -55,3 +55,47 @@ export async function fetchWarconCareer(steamId) {
     dossier: dossierData?.dossier || null,
   };
 }
+
+
+export async function fetchWarconLeaderboard({
+  range = "7d",
+  scope = "server",
+  minMinutes = 60,
+  maxPages = 20,
+} = {}) {
+  const serverId = await resolveWarconServerId();
+  if (!serverId) return null;
+
+  const rows = [];
+  let total = 0;
+  let hasFeed = false;
+  let pageSize = 50;
+
+  for (let page = 1; page <= maxPages; page++) {
+    const params = new URLSearchParams({
+      scope,
+      range,
+      sort: "kills",
+      dir: "desc",
+      page: String(page),
+      minMinutes: String(minMinutes),
+    });
+    const data = await api(
+      `/api/servers/${encodeURIComponent(serverId)}/leaderboard?${params.toString()}`,
+    );
+    const part = Array.isArray(data?.rows) ? data.rows : [];
+    total = Number(data?.total) || part.length;
+    pageSize = Number(data?.pageSize) || pageSize;
+    hasFeed = Boolean(data?.hasFeed);
+
+    rows.push(...part);
+    if (!part.length || rows.length >= total || part.length < pageSize) break;
+  }
+
+  return {
+    serverId,
+    rows,
+    total,
+    hasFeed,
+  };
+}
