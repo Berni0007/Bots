@@ -29,7 +29,7 @@ import {
 } from "./panel.js";
 const usageCd = new Cooldown(60_000);
 const DOG_CHANNEL_ID = "1553370010158759969";
-const OWNED_COMMANDS = new Set(["dog", "seed-panel", "seed-test"]);
+const OWNED_COMMANDS = new Set(["dog", "seed-panel", "seed-test", "seed-last"]);
 
 export function buildCommands() {
   const dog = new SlashCommandBuilder()
@@ -53,7 +53,78 @@ export function buildCommands() {
     .setDescription("Проверить текущих участников SEED без завершения")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
-  return [dog, seedPanel, seedTest];
+  const seedLast = new SlashCommandBuilder()
+    .setName("seed-last")
+    .setDescription("Показать последний завершённый SEED")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
+
+  return [dog, seedPanel, seedTest, seedLast];
+}
+
+async function sendSeedResult(client, result) {
+  const channelId = String(config.seedChannelId || "").trim();
+  if (!channelId) return false;
+
+  const target = await client.channels.fetch(channelId).catch(() => null);
+  if (!target?.isTextBased()) return false;
+
+  const payload = seedResultMessage(result);
+
+  if (typeof target.send === "function") {
+    try {
+      await target.send(payload);
+      console.log("seed: итоговый отчёт отправлен обычным сообщением");
+      return true;
+    } catch (error) {
+      console.warn("seed result send:", error.message);
+    }
+  }
+
+  if (typeof target.fetchWebhooks === "function" && typeof target.createWebhook === "function") {
+    try {
+      const hooks = await target.fetchWebhooks();
+      let hook = hooks.find(
+        (item) => item.name === "ZARUBA SEED" && item.owner?.id === client.user.id,
+      );
+      if (!hook) {
+        hook = await target.createWebhook({
+          name: "ZARUBA SEED",
+          reason: "Автоматические итоги SEED ZARUBA",
+        });
+      }
+      await hook.send(payload);
+      console.log("seed: итоговый отчёт отправлен через webhook");
+      return true;
+    } catch (error) {
+      console.warn("seed result webhook:", error.message);
+    }
+  }
+
+  try {
+    const recent = await target.messages?.fetch({ limit: 50 }).catch(() => null);
+    const existing = recent?.find(
+      (message) =>
+        message.author?.id === client.user.id &&
+        (
+          message.embeds?.some((embed) =>
+            ["SEED ZARUBA", "СОБИРАЕМ СТАЮ", "SEED ЗАВЕРШЁН"].includes(embed.title),
+          ) ||
+          message.components?.some((row) =>
+            row.components?.some((component) => component.customId === SEED_JOIN),
+          )
+        ),
+    );
+    if (existing) {
+      await existing.edit(payload);
+      console.log("seed: итоговый отчёт показан через обновление SEED-панели");
+      return true;
+    }
+  } catch (error) {
+    console.warn("seed result edit fallback:", error.message);
+  }
+
+  console.warn("seed: не удалось опубликовать итоговый отчёт");
+  return false;
 }
 
 async function publishSeedPanel(client, store, poller, servers) {
@@ -91,11 +162,6 @@ async function publishSeedPanel(client, store, poller, servers) {
     await channel.send(payload);
   }
 
-  poller.onSeedComplete = async (result) => {
-    const target = await client.channels.fetch(channelId).catch(() => null);
-    if (!target?.isTextBased() || typeof target.send !== "function") return;
-    await target.send(seedResultMessage(result));
-  };
 }
 
 
@@ -263,6 +329,10 @@ export async function startBot({ token, clientId, guildId, store, poller, server
       pushActivity();
     };
 
+    poller.onSeedComplete = async (result) => {
+      await sendSeedResult(ready, result);
+    };
+
     const ensureSeedPanel = async () => {
       try {
         await publishSeedPanel(ready, store, poller, servers);
@@ -381,6 +451,45 @@ export async function startBot({ token, clientId, guildId, store, poller, server
           online,
           participants,
           eligible,
+        }));
+        return;
+      } else if (interaction.commandName === "seed-last") {
+        const channelId = String(config.seedChannelId || "").trim();
+        if (interaction.channelId !== channelId) {
+          await interaction.reply({
+            content: `Последний SEED показываем только в <#${channelId}>.`,
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        const { server } = seedServerState(poller, servers);
+        if (!server) {
+          await interaction.reply({
+            content: "Сервер WARDOGS не настроен.",
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        const round = store.lastCompletedSeedRound(server.id);
+        if (!round) {
+          await interaction.reply({
+            content: "Завершённых SEED пока нет.",
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        const participants = store.seedParticipants(round.id);
+        const eligible = participants.filter((row) => Number(row.rewarded || 0) === 1);
+        await interaction.reply(seedResultMessage({
+          server,
+          threshold: Number(round.threshold || config.seedThreshold || 30),
+          online: "31+",
+          participants,
+          eligible,
+          endedAt: round.ended_at,
         }));
         return;
       } else if (interaction.commandName === "seed-panel") {
