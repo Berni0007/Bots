@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const WIDTH = 1280;
 const HEIGHT = 720;
+const WEEKLY_BRAND_IMAGE_URL = "https://i.ibb.co/tTkjsFTm/2.jpg";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
@@ -63,6 +64,21 @@ function prepareCyrillicFonts() {
   }
 }
 
+
+async function fetchOptionalImage(url) {
+  try {
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(5000),
+      headers: { Accept: "image/*" },
+    });
+    if (!response.ok) return null;
+    const type = response.headers.get("content-type") || "";
+    if (!type.startsWith("image/")) return null;
+    return Buffer.from(await response.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
 
 function num(value) {
   const n = Number(value);
@@ -218,13 +234,8 @@ function svgFor(stats) {
           fill="none" stroke="#839087" stroke-width="2"/>
   </g>
 
-  <g transform="translate(56 46)">
-    <rect x="0" y="0" width="96" height="96" rx="20" fill="#141a16" stroke="#b88945" stroke-width="2"/>
-    <path d="M24 63 L40 31 L55 49 L76 27 L70 65 L51 76 Z" fill="none" stroke="#efe6d3" stroke-width="6" stroke-linejoin="round"/>
-  </g>
-
-  <text x="710" y="100" text-anchor="middle" class="title" font-size="54">ПОБЕДИТЕЛИ НЕДЕЛИ</text>
-  <text x="710" y="139" text-anchor="middle" class="muted" font-size="19" letter-spacing="5">ПОСЛЕДНИЕ 7 ДНЕЙ</text>
+  <text x="640" y="100" text-anchor="middle" class="title" font-size="54">ПОБЕДИТЕЛИ НЕДЕЛИ</text>
+  <text x="640" y="139" text-anchor="middle" class="muted" font-size="19" letter-spacing="5">ПОСЛЕДНИЕ 7 ДНЕЙ</text>
 
   <g filter="url(#shadow)">
     <rect x="154" y="198" width="972" height="255" rx="24" fill="url(#leader)" stroke="#b98b48" stroke-width="2"/>
@@ -274,10 +285,41 @@ export async function renderWeeklyImage(stats) {
 
   try {
     const svg = Buffer.from(svgFor(stats));
-    const buffer = await sharp(svg, { density: 144 })
-      .resize(WIDTH, HEIGHT)
+    let pipeline = sharp(svg, { density: 144 }).resize(WIDTH, HEIGHT);
+
+    const brandSource = await fetchOptionalImage(WEEKLY_BRAND_IMAGE_URL);
+    if (brandSource) {
+      try {
+        const brand = await sharp(brandSource)
+          .resize({
+            width: 145,
+            height: 86,
+            fit: "contain",
+            background: { r: 0, g: 0, b: 0, alpha: 0 },
+            withoutEnlargement: true,
+          })
+          .png()
+          .toBuffer();
+
+        pipeline = pipeline.composite([
+          {
+            input: brand,
+            left: 28,
+            top: 29,
+          },
+        ]);
+      } catch (error) {
+        console.warn(
+          "weekly image logo:",
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+
+    const buffer = await pipeline
       .png({ compressionLevel: 9, adaptiveFiltering: true })
       .toBuffer();
+
     return { ok: true, reason: "", buffer };
   } catch (error) {
     return {
