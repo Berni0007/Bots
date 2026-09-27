@@ -212,7 +212,7 @@ export function seedPanelMessage(threshold = 30) {
         "**Награда:** VIP на 1 день на все серверы ZARUBA — Squad и WARDOGS.",
         "**3 успешно завершённых SEED за 3 дня:** Супер VIP на 1 день.",
         "",
-        "Награда выдаётся только тем, чей SteamID бот реально увидел на сервере до завершения SEED.",
+        "Награда выдаётся только тем, кто зарегистрирован и находится на сервере в момент завершения SEED.",
       ].join("\n"),
     )
     .setFooter({ text: "ZARUBA SERVER · WARDOGS SEED" });
@@ -298,7 +298,7 @@ export function seedTestMessage({ server, threshold, online, participants = [], 
         "**Зарегистрировались:**",
         all,
         "",
-        "**Бот уже увидел на сервере:**",
+        "**Сейчас на сервере и получат награду при завершении:**",
         confirmed,
       ].join("\n"),
     )
