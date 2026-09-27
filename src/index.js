@@ -42,7 +42,7 @@ async function main() {
 
   startAutomaticDiscordOutput({
     token: config.discordToken,
-    liveChannelId: config.liveChannelId,
+    liveChannelId: "", // Live battle publication temporarily disabled.
     resultsChannelId: config.matchResultsChannelId,
     databasePath: config.databasePath,
     poller,
@@ -53,7 +53,7 @@ async function main() {
     setTimeout(() => {
       void diagnoseDiscordChannels({
         token: config.discordToken,
-        liveChannelId: config.liveChannelId,
+        liveChannelId: "", // Live battle publication temporarily disabled.
         resultsChannelId: config.matchResultsChannelId,
       });
     }, 2_000);
